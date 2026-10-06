@@ -1,7 +1,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any, Optional
 from ..config import settings
 
 logger = logging.getLogger("darknet_monitor.db")

@@ -1,3 +1,4 @@
+import os
 import csv
 import re
 import asyncio
@@ -6,15 +7,17 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from ..db.mongodb import store, get_channel_dir
+
+logger = logging.getLogger("darknet_monitor.api.channels")
+
+IST = timezone(timedelta(hours=5, minutes=30))
 from ..db.models import Channel
 from ..scrapers.telegram_scraper import telegram_scraper
 from ..llm.threat_analyzer import analyzer
 from ..reports.report_generator import report_generator
 from ..config import settings
-
-logger = logging.getLogger("darknet_monitor.api.channels")
-IST = timezone(timedelta(hours=5, minutes=30))
 
 router = APIRouter(prefix="/channels", tags=["Channels"])
 
@@ -68,7 +71,7 @@ async def list_channels():
             for ch in channels:
                 ch["message_count"] = counts.get(ch["id"], 0)
             return channels
-        except Exception:
+        except Exception as e:
             pass # fallback to CSV if mongo fails
             
     async def get_count(ch):

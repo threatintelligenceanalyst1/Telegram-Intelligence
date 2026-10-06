@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
@@ -141,7 +142,7 @@ During the automated scraping cycle, **{len(messages)} messages** were collected
                 if clean_line:
                     pdf.multi_cell(0, 6, clean_line)
             pdf.output(str(pdf_path))
-        except Exception:
+        except Exception as e:
             # Fallback text representation if FPDF encounters formatting issues
             with open(str(pdf_path) + ".txt", "w", encoding="utf-8") as f:
                 f.write(content)

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..scrapers.telegram_scraper import telegram_scraper
+from ..config import settings
 
 router = APIRouter(prefix="/telegram/auth", tags=["Telegram Auth"])
 

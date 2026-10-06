@@ -1,3 +1,5 @@
+import pytest
+from datetime import datetime
 
 def merge_extracted_urls(state, extracted_urls, now_time_str):
     """Helper representing the exact url state merging algorithm from scheduler.py."""

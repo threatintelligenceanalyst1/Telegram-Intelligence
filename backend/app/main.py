@@ -155,9 +155,9 @@ def _migrate_session_file():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """On startup: connect to MongoDB, restore CSV data, then auto-sync Telegram if session exists."""
-    logger.info("═══════════════════════════════════════════════")
+    logger.info(f"═══════════════════════════════════════════════")
     logger.info(f"  {settings.PROJECT_NAME} v{settings.VERSION} — Starting Up")
-    logger.info("═══════════════════════════════════════════════")
+    logger.info(f"═══════════════════════════════════════════════")
     logger.info(f"TELEGRAM_API_ID = {settings.TELEGRAM_API_ID}")
     logger.info(f"TELEGRAM_API_HASH = {'*' * 6 + settings.TELEGRAM_API_HASH[-4:] if settings.TELEGRAM_API_HASH else 'NOT SET'}")
 
@@ -192,7 +192,7 @@ async def lifespan(app: FastAPI):
             _migrate_numeric_folders_to_titles()
             asyncio.create_task(_migrate_csv_messages_to_db())
         else:
-            logger.info("No active Telegram session. Please authenticate via Settings page.")
+            logger.info(f"No active Telegram session. Please authenticate via Settings page.")
     except Exception as e:
         logger.warning(f"Auto-sync skipped: {e}")
 

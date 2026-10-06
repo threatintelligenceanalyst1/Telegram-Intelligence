@@ -1,8 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, ExternalLink, Loader2, X, Filter } from 'lucide-react';
+import { Search, AlertTriangle, Shield, AlertCircle, Info, ExternalLink, Loader2, X, Filter } from 'lucide-react';
 import { globalSearch, getChannels } from '../services/api';
 import { Message, Channel } from '../types';
 
+const THREAT_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  CRITICAL: { label: 'CRITICAL', color: 'text-red-700', bg: 'bg-red-100 border-red-300', icon: <AlertTriangle className="w-3 h-3" /> },
+  HIGH:     { label: 'HIGH',     color: 'text-orange-700', bg: 'bg-orange-100 border-orange-300', icon: <AlertCircle className="w-3 h-3" /> },
+  MEDIUM:   { label: 'MEDIUM',   color: 'text-yellow-700', bg: 'bg-yellow-100 border-yellow-300', icon: <Shield className="w-3 h-3" /> },
+  LOW:      { label: 'LOW',      color: 'text-blue-700',  bg: 'bg-blue-100 border-blue-300',  icon: <Info className="w-3 h-3" /> },
+};
+
+function ThreatBadge({ level }: { level: string }) {
+  const cfg = THREAT_CONFIG[level?.toUpperCase()] || THREAT_CONFIG.LOW;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${cfg.bg} ${cfg.color}`}>
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+}
 
 function highlightText(text: string, query: string, isFuzzy: boolean): React.ReactNode {
   if (!query || !query.trim()) return text;

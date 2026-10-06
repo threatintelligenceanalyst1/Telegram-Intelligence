@@ -1,3 +1,4 @@
+import pytest
 from app.db.mongodb import store
 
 def test_get_channels(client):

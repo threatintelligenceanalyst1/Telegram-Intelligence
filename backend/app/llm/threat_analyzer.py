@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import requests
@@ -36,18 +37,12 @@ class LLMThreatAnalyzer:
 
         # Calculate risk score
         risk_score = 10
-        if indicators.get("cves"):
-            risk_score += 25
-        if indicators.get("malware_references"):
-            risk_score += 20
-        if indicators.get("leaked_credentials"):
-            risk_score += 20
-        if indicators.get("iocs"):
-            risk_score += 15
-        if indicators.get("crypto_wallets"):
-            risk_score += 10
-        if indicators.get("suspicious_activities"):
-            risk_score += 10
+        if indicators.get("cves"): risk_score += 25
+        if indicators.get("malware_references"): risk_score += 20
+        if indicators.get("leaked_credentials"): risk_score += 20
+        if indicators.get("iocs"): risk_score += 15
+        if indicators.get("crypto_wallets"): risk_score += 10
+        if indicators.get("suspicious_activities"): risk_score += 10
 
         if local_llm_response and "risk_score" in local_llm_response:
             try:

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Plus, Eye, MessageSquare, RefreshCw } from 'lucide-react';
+import { Search, Plus, Eye, MessageSquare, RefreshCw, ShieldCheck, Download } from 'lucide-react';
 import { getChannels, getMessages, toggleChannelMonitoring, addCustomChannel, syncTelegramChannels } from '../services/api';
 import { Channel, Message } from '../types';
 

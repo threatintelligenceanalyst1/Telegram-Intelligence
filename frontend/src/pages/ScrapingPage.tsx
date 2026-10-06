@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { PlayCircle, Square, Terminal, Radio, Eye, Trash2, ArrowRight, CheckSquare, RefreshCw } from 'lucide-react';
+import { PlayCircle, Square, Terminal, Radio, Eye, Trash2, ArrowRight, CheckSquare, RefreshCw, Plus } from 'lucide-react';
 import { getChannels, toggleChannelMonitoring, startScraping, stopScraping, getScraperStatus, deleteChannel, scrapeSingleChannel, syncTelegramChannels } from '../services/api';
 import { Channel, ScraperStatus } from '../types';
 
 export const ScrapingPage: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [status, setStatus] = useState<ScraperStatus>({ is_scraping: false, progress: 0, current_channel: '', logs: [], scrape_queue: [], completed_channels: [], total_channels_count: 0 });
+  const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
@@ -77,10 +78,13 @@ export const ScrapingPage: React.FC = () => {
   };
 
   const handleStartScrape = async () => {
+    setLoading(true);
     try {
       await startScraping();
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 

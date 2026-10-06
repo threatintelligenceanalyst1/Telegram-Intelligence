@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Radio, Bell, Cpu, FileText, AlertTriangle, XCircle, Check } from 'lucide-react';
-import { getNotifications, markNotificationsRead } from '../../services/api';
+import { Shield, Radio, Bell, RefreshCw, PlayCircle, Cpu, FileText, AlertTriangle, XCircle, Check } from 'lucide-react';
+import { syncTelegramChannels, startScraping, getNotifications, markNotificationsRead } from '../../services/api';
 
 interface NavbarProps {
   isScraping: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ isScraping }) => {
+  const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,6 +44,25 @@ export const Navbar: React.FC<NavbarProps> = ({ isScraping }) => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await syncTelegramChannels();
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleScrapeAll = async () => {
+    try {
+      await startScraping();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleMarkAllRead = async () => {
     try {

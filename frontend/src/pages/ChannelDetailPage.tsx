@@ -1,15 +1,14 @@
-import { useEffect, useState, type FC, type ReactNode, type FormEvent } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Shield, RefreshCw, MessageSquare, Terminal, PlayCircle, Bug, Globe, AlertTriangle, Clock, Check, ArrowLeft, Calendar, RotateCcw, Cpu, Copy, X, FileText } from 'lucide-react';
+import { Shield, Radio, RefreshCw, Eye, MessageSquare, Terminal, PlayCircle, Bug, Globe, AlertTriangle, Clock, Check, ArrowLeft, Calendar, RotateCcw, Cpu, Copy, X, FileText } from 'lucide-react';
 import { getChannels, getMessages, scrapeSingleChannel, getScraperStatus, scheduleChannel, generateAiReport, getLiveReport, getDailyMessageStats } from '../services/api';
 import { Channel, Message, ScraperStatus, DailyStatsResponse } from '../types';
-import { ScrapeCalendar } from '../components/ScrapeCalendar';
 
-const MarkdownRenderer: FC<{ content: string }> = ({ content }) => {
+const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
   if (!content) return <p className="text-slate-500 italic">No report content available.</p>;
 
   const lines = content.split('\n');
-  const elements: ReactNode[] = [];
+  const elements: React.ReactNode[] = [];
   
   let currentTableRows: string[][] = [];
 
@@ -192,7 +191,7 @@ const MarkdownRenderer: FC<{ content: string }> = ({ content }) => {
   return <div className="space-y-1.5">{elements}</div>;
 };
 
-const highlightText = (text: string, query: string, isFuzzy: boolean): ReactNode => {
+const highlightText = (text: string, query: string, isFuzzy: boolean): React.ReactNode => {
   if (!query || !query.trim()) return text;
   
   let patternStr = "";
@@ -232,7 +231,7 @@ const highlightText = (text: string, query: string, isFuzzy: boolean): ReactNode
   );
 };
 
-export const ChannelDetailPage: FC = () => {
+export const ChannelDetailPage: React.FC = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -268,7 +267,7 @@ export const ChannelDetailPage: FC = () => {
   const [intervalUnit, setIntervalUnit] = useState('minutes');
   
   // Tabs & Live Report State
-  const [activeTab, setActiveTab] = useState<'messages' | 'live-report' | 'calendar'>('messages');
+  const [activeTab, setActiveTab] = useState<'messages' | 'live-report'>('messages');
   const [liveReportMd, setLiveReportMd] = useState<string>('');
   const [liveReportLoading, setLiveReportLoading] = useState(false);
   
@@ -323,7 +322,7 @@ export const ChannelDetailPage: FC = () => {
     }
   };
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
   };
 
@@ -441,7 +440,7 @@ export const ChannelDetailPage: FC = () => {
     }
   };
 
-  const handleUpdateSchedule = async (e: FormEvent) => {
+  const handleUpdateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!channel) return;
     try {
@@ -887,18 +886,6 @@ export const ChannelDetailPage: FC = () => {
                   <FileText className="w-3.5 h-3.5 text-indigo-500" />
                   Live daily Report (.md)
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('calendar')}
-                  className={`px-4 py-3 text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all ${
-                    activeTab === 'calendar'
-                      ? 'border-blue-500 text-blue-600 bg-blue-500/5'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                  Scrape Calendar & History
-                </button>
               </div>
 
               {/* Action Buttons depending on Tab */}
@@ -980,27 +967,7 @@ export const ChannelDetailPage: FC = () => {
 
             {/* Scrollable table/report container */}
             <div className="flex-1 overflow-y-auto min-h-0 bg-darkBg/15">
-              {activeTab === 'calendar' ? (
-                <div className="p-4 bg-white overflow-y-auto min-h-full">
-                  <ScrapeCalendar
-                    channelId={channel.id}
-                    channels={[channel]}
-                    selectedDate={startDate || undefined}
-                    onSelectDate={(d) => {
-                      if (d) {
-                        setStartDate(d);
-                        setEndDate(d);
-                        setSelectedDateChip(d);
-                        setActiveTab('messages');
-                      } else {
-                        setStartDate('');
-                        setEndDate('');
-                        setSelectedDateChip(null);
-                      }
-                    }}
-                  />
-                </div>
-              ) : activeTab === 'messages' ? (
+              {activeTab === 'messages' ? (
                 <>
                   {/* Daily Scraped Breakdown Chips Strip */}
                   {channelDailyStats && channelDailyStats.daily_stats.length > 0 && (

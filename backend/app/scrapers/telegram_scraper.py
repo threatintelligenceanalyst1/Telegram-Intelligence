@@ -1,3 +1,4 @@
+import os
 import csv
 import re
 import asyncio
@@ -14,8 +15,8 @@ logger = logging.getLogger("darknet_monitor.scraper")
 telethon_available = False
 try:
     from telethon import TelegramClient
-    from telethon.tl.types import Channel as TelethonChannel, User as TelethonUser
-    from telethon.errors import SessionPasswordNeededError, ApiIdInvalidError, PhoneNumberInvalidError
+    from telethon.tl.types import Channel as TelethonChannel, Chat as TelethonChat, User as TelethonUser
+    from telethon.errors import SessionPasswordNeededError, RPCError, ApiIdInvalidError, PhoneNumberInvalidError
     telethon_available = True
 except ImportError:
     telethon_available = False
@@ -53,46 +54,6 @@ class TelegramScraper:
         if len(self.logs) > 100:
             self.logs.pop(0)
         logger.info(log_entry)
-
-    def _record_scrape_history(self, channel_id: str, channel_title: str, count: int):
-        """Record real-world scraping execution runs by date."""
-        try:
-            import json
-            ist = timezone(timedelta(hours=5, minutes=30))
-            now = datetime.now(ist)
-            today_str = now.strftime("%Y-%m-%d")
-            
-            history_file = settings.DATA_DIR / "scrape_history.json"
-            history = []
-            if history_file.exists():
-                try:
-                    with open(history_file, "r", encoding="utf-8") as f:
-                        history = json.load(f)
-                except Exception:
-                    history = []
-                    
-            found = False
-            for item in history:
-                if item.get("date") == today_str and (item.get("channel_id") == str(channel_id) or item.get("channel_title") == channel_title):
-                    item["count"] = max(item.get("count", 0), count)
-                    item["timestamp"] = now.isoformat()
-                    found = True
-                    break
-                    
-            if not found:
-                history.append({
-                    "date": today_str,
-                    "timestamp": now.isoformat(),
-                    "channel_id": str(channel_id),
-                    "channel_title": channel_title,
-                    "count": count
-                })
-                
-            settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-            with open(history_file, "w", encoding="utf-8") as f:
-                json.dump(history, f, indent=2)
-        except Exception as e:
-            logger.error(f"Error logging scrape history: {e}")
 
     def _cleanup_corrupted_session(self):
         """Remove leftover/corrupted Telethon session files to reset MTProto auth key."""
@@ -425,11 +386,11 @@ class TelegramScraper:
 
             try:
                 try:
-                    await self.auth_client.sign_in(phone=clean_phone, code=code_str, phone_code_hash=hash_to_use)
+                    user = await self.auth_client.sign_in(phone=clean_phone, code=code_str, phone_code_hash=hash_to_use)
                 except SessionPasswordNeededError:
                     if not password:
                         return {"error": "2FA_PASSWORD_REQUIRED", "message": "Two-Factor Authentication (2FA) password required"}
-                    await self.auth_client.sign_in(password=password)
+                    user = await self.auth_client.sign_in(password=password)
 
                 me = await self.auth_client.get_me()
                 await self.auth_client.disconnect()
@@ -651,9 +612,9 @@ class TelegramScraper:
                                 except Exception:
                                     pass
                                 
-                                ist = timezone(timedelta(hours=5, minutes=30))
-                                now_ist = datetime.now(ist)
-                                today_str = now_ist.strftime("%Y-%m-%d")
+                                if not sender_desc:
+                                    sender_desc = sender_id_str
+
                                 msg_date = message.date
                                 msg_data = {
                                     "id": f"msg_{ch_id}_{message.id}",
@@ -661,9 +622,7 @@ class TelegramScraper:
                                     "channel_username": channel.get("title") or channel.get("username"),
                                     "sender": sender_desc,
                                     "text": message.text,
-                                    "date": msg_date.isoformat() if msg_date else now_ist.isoformat(),
-                                    "scraped_at": now_ist.isoformat(),
-                                    "scraped_date": today_str,
+                                    "date": msg_date.isoformat() if msg_date else datetime.utcnow().isoformat(),
                                     "views": getattr(message, "views", 10) or 10,
                                     "media_url": None,
                                     "threat_level": "LOW",
@@ -676,14 +635,13 @@ class TelegramScraper:
                             # Store channel-wise data into Mongo and CSV (de-duplicated)
                             if scraped_from_channel:
                                 await self._save_messages(ch_id, self.current_channel, scraped_from_channel)
-                                self._record_scrape_history(ch_id, self.current_channel, len(scraped_from_channel))
                                 store.add_notification("scrape", f"✓ Scraped {len(scraped_from_channel)} new messages from '{self.current_channel}'")
 
 
                         except Exception as e:
                             self.log(f"Telethon live fetch for '{self.current_channel}' error: {e}")
                     else:
-                        self.log("User account not authorized. Complete Telegram OTP verification in Settings to pull live data.")
+                        self.log(f"User account not authorized. Complete Telegram OTP verification in Settings to pull live data.")
 
                     store.channels[ch_id]["status"] = "idle"
                     store.channels[ch_id]["last_scraped_at"] = datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat()

@@ -1,3 +1,4 @@
+import pytest
 from app.llm.regex_extractors import extract_indicators_with_regex
 
 def test_extract_cves():

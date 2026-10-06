@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChannelDetailPage } from './pages/ChannelDetailPage';
 import { GlobalSearchPage } from './pages/GlobalSearchPage';
+import { getScraperStatus } from './services/api';
 
 export function App() {
   const [isScraping, setIsScraping] = useState(false);

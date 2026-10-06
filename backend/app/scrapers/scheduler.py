@@ -23,6 +23,7 @@ async def run_mini_ai_analysis_cycle(channel_id: str):
         return
         
     try:
+        from ..config import settings
         date_str = datetime.now(IST).strftime("%Y-%m-%d")
         channel_reports_dir = get_channel_dir(channel_id, ch["title"]) / "reports"
         channel_reports_dir.mkdir(parents=True, exist_ok=True)

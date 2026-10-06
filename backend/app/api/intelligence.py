@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from typing import List, Dict, Any
 from ..db.mongodb import store
 
 router = APIRouter(prefix="/intelligence", tags=["Threat Intelligence"])

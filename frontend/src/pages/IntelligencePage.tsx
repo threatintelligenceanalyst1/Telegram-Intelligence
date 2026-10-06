@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Cpu, Bug, Key, Wallet, ShieldAlert, Hash } from 'lucide-react';
+import { Cpu, Bug, Key, Wallet, Link, ShieldAlert, Hash } from 'lucide-react';
 import { getIntelligenceSummary } from '../services/api';
 import { IntelligenceSummary } from '../types';
 

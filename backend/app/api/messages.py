@@ -2,8 +2,9 @@ import csv
 import re
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 from ..db.mongodb import store
 from ..db.models import Message
 from ..config import settings
@@ -102,47 +103,50 @@ async def get_message_count():
 @router.get("/daily-stats")
 async def get_daily_message_stats(
     channel_id: Optional[str] = None,
-    limit_days: int = 180
+    limit_days: int = Query(0, description="Max days of history to return (0 for all)")
 ):
     """
     Return daily message scraping stats, showcasing how many messages were scraped per day
     (e.g., 20th Aug, 19th Aug), 1-day today telemetry vs yesterday, and threat breakdowns.
     """
-    if hasattr(limit_days, "default"):
-        limit_days = getattr(limit_days, "default", 180) or 180
-    try:
-        limit_days = int(limit_days)
-    except Exception:
-        limit_days = 180
+    from ..db.mongodb import db, mongo_available
     
     daily_map: Dict[str, Dict[str, Any]] = {}
-    today_str = datetime.now(IST).strftime("%Y-%m-%d")
     
-    # 1. Load real-world scraping runs from scrape_history.json (authoritative source for scrape execution dates)
-    history_file = settings.DATA_DIR / "scrape_history.json"
-    if history_file.exists():
+    # 1. Check MongoDB if active
+    if mongo_available and db is not None:
         try:
-            import json
-            with open(history_file, "r", encoding="utf-8") as f:
-                history_entries = json.load(f)
-            for item in history_entries:
-                d_str = item.get("date")
-                if not d_str:
-                    continue
-                c_id = str(item.get("channel_id") or "unknown")
-                c_title = item.get("channel_title") or c_id
-                cnt = item.get("count", 0)
+            match_stage = {}
+            if channel_id:
+                match_stage["channel_id"] = channel_id
+            
+            pipeline = []
+            if match_stage:
+                pipeline.append({"$match": match_stage})
                 
-                # Match channel filter if given
-                if channel_id:
-                    matched = (c_id == str(channel_id))
-                    if not matched and str(channel_id) in store.channels:
-                        matched = (_safe_name(store.channels[str(channel_id)].get("title", "")) == _safe_name(c_title))
-                    if not matched and (c_title == channel_id or _safe_name(c_title) == _safe_name(channel_id)):
-                        matched = True
-                    if not matched:
-                        continue
-                        
+            pipeline.append({
+                "$group": {
+                    "_id": {
+                        "date": {"$substr": ["$date", 0, 10]},
+                        "threat_level": "$threat_level",
+                        "channel_id": "$channel_id",
+                        "channel_title": "$channel_username"
+                    },
+                    "count": {"$sum": 1}
+                }
+            })
+            cursor = db.messages.aggregate(pipeline)
+            async for doc in cursor:
+                d_id = doc["_id"]
+                d_str = d_id.get("date")
+                if not d_str or len(d_str) < 10:
+                    continue
+                d_str = d_str[:10]
+                th = (d_id.get("threat_level") or "LOW").upper()
+                c_id = d_id.get("channel_id") or "unknown"
+                c_title = d_id.get("channel_title") or c_id
+                cnt = doc.get("count", 0)
+                
                 if d_str not in daily_map:
                     daily_map[d_str] = {
                         "count": 0,
@@ -150,33 +154,84 @@ async def get_daily_message_stats(
                         "threat_levels": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
                     }
                 daily_map[d_str]["count"] += cnt
+                daily_map[d_str]["threat_levels"][th] = daily_map[d_str]["threat_levels"].get(th, 0) + cnt
                 if c_id not in daily_map[d_str]["channels"]:
                     daily_map[d_str]["channels"][c_id] = {"id": c_id, "title": c_title, "count": 0}
                 daily_map[d_str]["channels"][c_id]["count"] += cnt
         except Exception as e:
-            logger.error(f"Error reading scrape history from JSON: {e}")
+            logger.error(f"Error aggregating daily stats from MongoDB: {e}")
 
-    # 2. If no scrape history exists yet, fallback to messages scraped today in memory
-    if not daily_map:
-        for m in store.messages.values():
-            if channel_id and m.get("channel_id") != channel_id:
-                continue
-            d_str = m.get("scraped_date") or today_str
-            th = (m.get("threat_level") or "LOW").upper()
-            c_id = m.get("channel_id", "unknown")
-            c_title = m.get("channel_username") or store.channels.get(c_id, {}).get("title", c_id)
-            
-            if d_str not in daily_map:
-                daily_map[d_str] = {
-                    "count": 0,
-                    "channels": {},
-                    "threat_levels": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
-                }
+    # 2. Merge from In-Memory store if mongo was offline or empty
+    for m in store.messages.values():
+        if channel_id and m.get("channel_id") != channel_id:
+            continue
+        d_str = _extract_date_str(m.get("date"))
+        th = (m.get("threat_level") or "LOW").upper()
+        c_id = m.get("channel_id", "unknown")
+        c_title = m.get("channel_username") or store.channels.get(c_id, {}).get("title", c_id)
+        
+        if d_str not in daily_map:
+            daily_map[d_str] = {
+                "count": 0,
+                "channels": {},
+                "threat_levels": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+            }
+        if not mongo_available or db is None:
             daily_map[d_str]["count"] += 1
             daily_map[d_str]["threat_levels"][th] = daily_map[d_str]["threat_levels"].get(th, 0) + 1
             if c_id not in daily_map[d_str]["channels"]:
                 daily_map[d_str]["channels"][c_id] = {"id": c_id, "title": c_title, "count": 0}
             daily_map[d_str]["channels"][c_id]["count"] += 1
+
+    # 3. Also scan CSV files on disk (backup/parity check)
+    if not daily_map and settings.DATA_DIR.exists():
+        for ch_dir in settings.DATA_DIR.iterdir():
+            if not ch_dir.is_dir() or ch_dir.name in ["media", "reports"]:
+                continue
+            chats_dir = ch_dir / "chats"
+            if not chats_dir.exists():
+                continue
+            
+            # Resolve channel
+            ch_title = ch_dir.name
+            target_ch_id = ch_dir.name
+            for cid, cinfo in store.channels.items():
+                if cid == ch_dir.name or _safe_name(cinfo.get("title", "")) == ch_dir.name:
+                    target_ch_id = cid
+                    ch_title = cinfo.get("title", ch_title)
+                    break
+            
+            if channel_id and target_ch_id != channel_id and ch_dir.name != channel_id:
+                continue
+
+            for csv_path in chats_dir.glob("messages_*.csv"):
+                m_match = re.search(r"messages_(\d{4}-\d{2}-\d{2})\.csv", csv_path.name)
+                if not m_match:
+                    continue
+                d_str = m_match.group(1)
+                try:
+                    with open(csv_path, "r", encoding="utf-8") as f:
+                        reader = csv.reader(f)
+                        rows = list(reader)
+                    if len(rows) > 1:
+                        count = len(rows) - 1
+                        if d_str not in daily_map:
+                            daily_map[d_str] = {
+                                "count": 0,
+                                "channels": {},
+                                "threat_levels": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+                            }
+                        daily_map[d_str]["count"] += count
+                        if target_ch_id not in daily_map[d_str]["channels"]:
+                            daily_map[d_str]["channels"][target_ch_id] = {"id": target_ch_id, "title": ch_title, "count": 0}
+                        daily_map[d_str]["channels"][target_ch_id]["count"] += count
+                        
+                        for r in rows[1:]:
+                            if len(r) >= 6:
+                                th = (r[5] if r[5] in ["LOW", "MEDIUM", "HIGH", "CRITICAL"] else "LOW").upper()
+                                daily_map[d_str]["threat_levels"][th] = daily_map[d_str]["threat_levels"].get(th, 0) + 1
+                except Exception:
+                    pass
 
     # Build sorted result list
     sorted_dates = sorted(daily_map.keys(), reverse=True)

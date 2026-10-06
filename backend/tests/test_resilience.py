@@ -1,6 +1,8 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+import os
 import shutil
+from pathlib import Path
 from app.db.mongodb import store
 
 # 1. Test offline LLM fallback
