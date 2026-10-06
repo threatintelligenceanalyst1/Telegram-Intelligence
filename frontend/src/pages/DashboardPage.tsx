@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { 
   Radio, RefreshCw, ArrowRight, CheckSquare, Square, 
   Terminal, PlayCircle, MessageSquare, Briefcase, Search, MoreVertical,
-  Calendar, ChevronLeft, ChevronRight, Clock, ShieldAlert, Check, X,
+  Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, ShieldAlert, Check, X,
   Activity, Layers, ExternalLink
 } from 'lucide-react';
 import { 
@@ -24,6 +24,7 @@ export const DashboardPage: React.FC = () => {
   // Calendar State
   const [currentCalendarDate, setCurrentCalendarDate] = useState(() => new Date());
   const [selectedCalendarDateStr, setSelectedCalendarDateStr] = useState<string | null>(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const channelsContainerRef = useRef<HTMLDivElement>(null);
@@ -375,8 +376,55 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 📅 INTERACTIVE CALENDAR & DAILY SCRAPE MESSAGE COUNTER WIDGET */}
-      <div className="bg-darkCard rounded-xl border border-darkBorder p-4 shadow-sm">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div className="bg-darkCard rounded-xl border border-darkBorder shadow-sm overflow-hidden transition-all duration-200">
+        {/* Toggle Bar / Header */}
+        <div 
+          onClick={() => setIsCalendarOpen(prev => !prev)}
+          className="w-full flex items-center justify-between p-3.5 px-4 cursor-pointer hover:bg-slate-50/80 transition-colors select-none"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center border border-blue-500/20">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-800">Scrape Activity Calendar</span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                  {isCalendarOpen ? 'Visible' : 'Hidden'}
+                </span>
+                {selectedCalendarDateStr && (
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-700 border border-cyan-200">
+                    Selected: {selectedCalendarDateStr}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {isCalendarOpen 
+                  ? 'Browse message telemetry and daily scrape history by date'
+                  : 'Click to show / hide monthly calendar and daily scrape breakdown'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-darkBorder text-slate-700 hover:text-slate-900 shadow-sm transition-all hover:bg-slate-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCalendarOpen(prev => !prev);
+              }}
+            >
+              <span>{isCalendarOpen ? 'Hide Calendar' : 'Show Calendar'}</span>
+              {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Calendar Body */}
+        {isCalendarOpen && (
+          <div className="p-4 pt-1 border-t border-darkBorder/60">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           
           {/* Left Column: Interactive Month Calendar (7 cols) */}
           <div className="lg:col-span-7 space-y-3">
@@ -584,8 +632,10 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
 
+          </div>
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Scraping Progress Tracker Panel */}
       {(status.is_scraping || (status.total_channels_count > 0 && status.completed_channels.length === status.total_channels_count && status.total_channels_count > 0)) && (
