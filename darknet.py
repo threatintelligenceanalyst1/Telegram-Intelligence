@@ -8,7 +8,7 @@ def serve():
     print("🛡️  Starting Darknet Monitor Command Center Services...")
     print("====================================================")
     
-    root_dir = os.getcwd()
+    root_dir = os.path.dirname(os.path.abspath(__file__))
     backend_dir = os.path.join(root_dir, "backend")
     frontend_dir = os.path.join(root_dir, "frontend")
     

@@ -286,24 +286,42 @@ async def get_daily_message_stats(
     }
 
 
+@router.get("/sectors")
+async def get_search_sectors():
+    """Retrieve list of supported industry sectors for contextual search."""
+    from ..search.context_engine import ContextSearchEngine
+    return {
+        "sectors": ContextSearchEngine.get_supported_sectors()
+    }
+
+
 @router.get("/global-search")
 async def global_search_messages(
     q: str = Query("", description="Keyword to search across all channel messages"),
     threat_level: Optional[str] = Query(None, description="Filter by threat level: LOW, MEDIUM, HIGH, CRITICAL"),
     date: Optional[str] = Query(None, description="Filter by date YYYY-MM-DD"),
+    sector: Optional[str] = Query(None, description="Industry sector filter, e.g. 'Banking & Financial Services'"),
+    min_confidence: Optional[int] = Query(None, description="Minimum confidence score threshold (0-100)"),
     fuzzy: bool = Query(False, description="Enable fuzzy obfuscation / leetspeak matching"),
     page: int = Query(1, description="Page number to fetch"),
     limit: int = Query(50, description="Maximum results per page")
 ):
-    """Search across ALL channel messages simultaneously using fast MongoDB indexing."""
+    """Search across ALL channel messages with Sector-Aware Context Intelligence and Confidence Scoring."""
     if not q or not q.strip():
-        return {"results": [], "has_more": False}
+        return {
+            "results": [],
+            "has_more": False,
+            "total_matches": 0,
+            "sector_stats": {},
+            "selected_sector": sector or "All Sectors"
+        }
 
     q_clean = q.strip()
     from ..db.mongodb import db, mongo_available
-    
-    skip = (page - 1) * limit
-    fetch_limit = limit + 1
+    from ..search.context_engine import ContextSearchEngine
+
+    # Retrieve candidate pool for scoring
+    raw_candidates = []
     
     if mongo_available and db is not None:
         query: Dict[str, Any] = {}
@@ -333,40 +351,53 @@ async def global_search_messages(
                 {"sender": {"$regex": pattern_str, "$options": "i"}}
             ]
         else:
-            query["$text"] = {"$search": q_clean}
+            # Query with regex or text search for high recall
+            query["$or"] = [
+                {"text": {"$regex": re.escape(q_clean), "$options": "i"}},
+                {"sender": {"$regex": re.escape(q_clean), "$options": "i"}}
+            ]
             
-        cursor = db.messages.find(query).sort("date", -1).skip(skip).limit(fetch_limit)
-        results = await cursor.to_list(length=fetch_limit)
-        
-        for r in results:
+        cursor = db.messages.find(query).sort("date", -1).limit(1000)
+        mongo_results = await cursor.to_list(length=1000)
+        for r in mongo_results:
             r.pop("_id", None)
-            
-        has_more = len(results) > limit
-        if has_more:
-            results = results[:limit]
-            
-        return {"results": results, "has_more": has_more}
+        raw_candidates = mongo_results
 
-    # Fallback to in-memory search if MongoDB is offline
-    msgs = list(store.messages.values())
-    q_lower = q_clean.lower()
-    results = [
-        m for m in msgs
-        if q_lower in (m.get("text") or "").lower()
-        or q_lower in (m.get("sender") or "").lower()
-    ]
-    if threat_level:
-        results = [m for m in results if m.get("threat_level", "").upper() == threat_level.upper()]
-    if date:
-        results = [m for m in results if str(m.get("date", "")).startswith(date)]
-    results.sort(key=lambda x: x.get("date", ""), reverse=True)
-    
-    page_results = results[skip : skip + fetch_limit]
-    has_more = len(page_results) > limit
-    if has_more:
-        page_results = page_results[:limit]
-        
-    return {"results": page_results, "has_more": has_more}
+    # Fallback to in-memory store if MongoDB is offline or returned no results
+    if not raw_candidates:
+        msgs = list(store.messages.values())
+        q_lower = q_clean.lower()
+        mem_results = [
+            m for m in msgs
+            if q_lower in (m.get("text") or "").lower()
+            or q_lower in (m.get("sender") or "").lower()
+        ]
+        if threat_level:
+            mem_results = [m for m in mem_results if m.get("threat_level", "").upper() == threat_level.upper()]
+        if date:
+            mem_results = [m for m in mem_results if str(m.get("date", "")).startswith(date)]
+        mem_results.sort(key=lambda x: x.get("date", ""), reverse=True)
+        raw_candidates = mem_results
+
+    # Apply Context-Aware Intelligence & Confidence Scoring
+    scored_results, sector_stats = ContextSearchEngine.score_and_filter_results(
+        raw_candidates,
+        query=q_clean,
+        sector_filter=sector,
+        min_confidence=min_confidence
+    )
+
+    skip = (page - 1) * limit
+    page_results = scored_results[skip : skip + limit]
+    has_more = len(scored_results) > (skip + limit)
+
+    return {
+        "results": page_results,
+        "has_more": has_more,
+        "total_matches": len(scored_results),
+        "sector_stats": sector_stats,
+        "selected_sector": sector or "All Sectors"
+    }
 
 
 def _load_messages_from_csv(channel_id: str, channel_title: str, target_date: Optional[str] = None) -> List[dict]:

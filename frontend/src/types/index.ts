@@ -40,6 +40,13 @@ export interface Message {
   media_url?: string;
   threat_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   analyzed: boolean;
+  // Context-Aware Search & Confidence Scoring
+  confidence_score?: number;
+  confidence_level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  detected_sector?: string;
+  matched_context_keywords?: string[];
+  is_contextual_match?: boolean;
+  relevance_reason?: string;
 }
 
 export interface ThreatIntelligence {
@@ -75,6 +82,20 @@ export interface Report {
   summary: string;
 }
 
+export interface AutoMonitorStatus {
+  enabled: boolean;
+  interval_minutes: number;
+  interval_display?: string;
+  is_sweeping: boolean;
+  last_sweep_at: string;
+  next_sweep_at: string;
+  monitored_channels_count: number;
+  total_channels_count: number;
+  total_messages_collected: number;
+  live_listener_active: boolean;
+  status_message: string;
+}
+
 export interface ScraperStatus {
   is_scraping: boolean;
   progress: number;
@@ -83,6 +104,7 @@ export interface ScraperStatus {
   scrape_queue: string[];
   completed_channels: string[];
   total_channels_count: number;
+  auto_monitor?: AutoMonitorStatus;
 }
 
 export interface IntelligenceSummary {

@@ -33,6 +33,11 @@ class Settings:
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
     
+    # 24/7 Autonomous Monitoring Configuration
+    AUTO_MONITOR_24_7: bool = os.getenv("AUTO_MONITOR_24_7", "true").lower() in ("true", "1", "yes")
+    AUTO_MONITOR_INTERVAL_MINUTES: int = int(os.getenv("AUTO_MONITOR_INTERVAL_MINUTES", "1440"))
+    LIVE_LISTENER_ENABLED: bool = os.getenv("LIVE_LISTENER_ENABLED", "true").lower() in ("true", "1", "yes")
+
     # Storage Paths — BASE_DIR is the project root (darknet-monitor/)
     BASE_DIR: Path = Path(__file__).resolve().parents[2]
     # DATA_DIR can be overridden by environment variable (used in Docker)

@@ -42,7 +42,8 @@ async def start_scraping(background_tasks: BackgroundTasks):
 
 @router.get("/status")
 async def get_scraping_status():
-    """Get real-time scraping progress and logs."""
+    """Get real-time scraping progress, logs, and 24/7 monitoring status."""
+    from ..scrapers.scheduler import get_auto_monitor_status
     return {
         "is_scraping": telegram_scraper.is_scraping,
         "stop_requested": telegram_scraper._stop_requested,
@@ -52,11 +53,13 @@ async def get_scraping_status():
         "scrape_queue": telegram_scraper.scrape_queue,
         "completed_channels": telegram_scraper.completed_channels,
         "total_channels_count": telegram_scraper.total_channels_count,
+        "auto_monitor": get_auto_monitor_status(),
     }
 
 @router.get("/stream")
 async def stream_scraper_status():
     """Stream real-time scraper progress and logs using Server-Sent Events (SSE)."""
+    from ..scrapers.scheduler import get_auto_monitor_status
     async def event_generator():
         last_status = None
         while True:
@@ -69,6 +72,7 @@ async def stream_scraper_status():
                 "scrape_queue": list(telegram_scraper.scrape_queue),
                 "completed_channels": list(telegram_scraper.completed_channels),
                 "total_channels_count": telegram_scraper.total_channels_count,
+                "auto_monitor": get_auto_monitor_status(),
             }
             if current_status != last_status:
                 last_status = current_status
@@ -83,3 +87,47 @@ async def stop_scraping():
         return {"status": "No scraping job is currently running"}
     telegram_scraper.stop()
     return {"status": "Stop signal sent. Scraping will halt after the current channel completes."}
+
+@router.get("/auto-monitor")
+async def get_auto_monitor():
+    """Get status of the 24/7 Autonomous Monitor."""
+    from ..scrapers.scheduler import get_auto_monitor_status
+    return get_auto_monitor_status()
+
+@router.post("/auto-monitor/toggle")
+async def toggle_auto_monitor():
+    """Toggle 24/7 Autonomous Monitor ON or OFF."""
+    from ..scrapers.scheduler import auto_monitor, get_auto_monitor_status
+    auto_monitor.enabled = not auto_monitor.enabled
+    telegram_scraper.log(f"24/7 Autonomous Monitor {'enabled' if auto_monitor.enabled else 'paused'}.")
+    store.add_notification("info", f"24/7 Auto-Monitoring {'RESUMED' if auto_monitor.enabled else 'PAUSED'}")
+    return get_auto_monitor_status()
+
+@router.post("/auto-monitor/enable-all")
+async def enable_all_auto_monitor(background_tasks: BackgroundTasks):
+    """Enable 24/7 autonomous monitoring for all current channels and trigger immediate sweep."""
+    from ..scrapers.scheduler import enable_all_channels_247, run_247_autonomous_sweep, get_auto_monitor_status
+    count = enable_all_channels_247()
+    telegram_scraper.log(f"🟢 24/7 Auto-Monitoring enabled across all {count} channels.")
+    store.add_notification("info", f"🟢 24/7 Auto-Monitoring active across all {count} channels.")
+    # Trigger immediate sweep in background
+    background_tasks.add_task(run_247_autonomous_sweep)
+    return {
+        "status": "enabled_all",
+        "channels_enabled": count,
+        "auto_monitor": get_auto_monitor_status()
+    }
+
+class SetIntervalRequest:
+    interval_minutes: int
+
+@router.post("/auto-monitor/interval")
+async def set_auto_monitor_interval(interval_minutes: int):
+    """Update 24/7 Autonomous Monitor sweep interval (in minutes)."""
+    from ..scrapers.scheduler import auto_monitor, get_auto_monitor_status
+    if interval_minutes < 1:
+        interval_minutes = 1
+    auto_monitor.interval_minutes = interval_minutes
+    telegram_scraper.log(f"24/7 Autonomous Monitor interval updated to {interval_minutes} minutes.")
+    return get_auto_monitor_status()
+

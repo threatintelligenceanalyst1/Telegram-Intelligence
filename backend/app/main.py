@@ -191,6 +191,16 @@ async def lifespan(app: FastAPI):
             # Run migration of folders and reload to map them correctly
             _migrate_numeric_folders_to_titles()
             asyncio.create_task(_migrate_csv_messages_to_db())
+            
+            # Auto-enable 24/7 monitoring across all channels
+            if getattr(settings, "AUTO_MONITOR_24_7", True):
+                from .scrapers.scheduler import enable_all_channels_247
+                count = enable_all_channels_247()
+                logger.info(f"🟢 24/7 Autonomous Monitoring active across {count} channels.")
+
+            # Start 24/7 real-time live event listener
+            if getattr(settings, "LIVE_LISTENER_ENABLED", True):
+                asyncio.create_task(telegram_scraper.start_live_listener())
         else:
             logger.info(f"No active Telegram session. Please authenticate via Settings page.")
     except Exception as e:

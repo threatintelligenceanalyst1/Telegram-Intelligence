@@ -4,8 +4,8 @@ import logging
 import requests
 from typing import Dict, Any, List
 from datetime import datetime
-from ..config import settings
-from .regex_extractors import extract_indicators_with_regex
+from app.config import settings
+from app.llm.regex_extractors import extract_indicators_with_regex
 
 logger = logging.getLogger("darknet_monitor.llm")
 

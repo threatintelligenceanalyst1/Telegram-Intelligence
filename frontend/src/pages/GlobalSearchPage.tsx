@@ -1,50 +1,81 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, AlertTriangle, Shield, AlertCircle, Info, ExternalLink, Loader2, X, Filter } from 'lucide-react';
-import { globalSearch, getChannels } from '../services/api';
+import { Search, ExternalLink, Loader2, X, Sparkles, Building2, SlidersHorizontal } from 'lucide-react';
+import { globalSearch, getChannels, getSearchSectors } from '../services/api';
 import { Message, Channel } from '../types';
 
-const THREAT_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  CRITICAL: { label: 'CRITICAL', color: 'text-red-700', bg: 'bg-red-100 border-red-300', icon: <AlertTriangle className="w-3 h-3" /> },
-  HIGH:     { label: 'HIGH',     color: 'text-orange-700', bg: 'bg-orange-100 border-orange-300', icon: <AlertCircle className="w-3 h-3" /> },
-  MEDIUM:   { label: 'MEDIUM',   color: 'text-yellow-700', bg: 'bg-yellow-100 border-yellow-300', icon: <Shield className="w-3 h-3" /> },
-  LOW:      { label: 'LOW',      color: 'text-blue-700',  bg: 'bg-blue-100 border-blue-300',  icon: <Info className="w-3 h-3" /> },
+const DEFAULT_SECTORS = [
+  'All Sectors',
+  'Banking & Financial Services',
+  'FinTech & Payments',
+  'Cybersecurity',
+  'Technology & Software',
+  'Healthcare',
+  'E-commerce',
+  'Telecommunications',
+  'Government',
+  'Education',
+  'Aviation',
+  'Automotive',
+  'Energy',
+  'Defense',
+  'Retail',
+  'Logistics',
+  'Other / General'
+];
+
+const SECTOR_ICONS: Record<string, string> = {
+  'Banking & Financial Services': '🏦',
+  'FinTech & Payments': '💳',
+  'Cybersecurity': '🛡️',
+  'Technology & Software': '💻',
+  'Healthcare': '🏥',
+  'E-commerce': '🛒',
+  'Telecommunications': '📡',
+  'Government': '🏛️',
+  'Education': '🎓',
+  'Aviation': '✈️',
+  'Automotive': '🚗',
+  'Energy': '⚡',
+  'Defense': '🪖',
+  'Retail': '🛍️',
+  'Logistics': '🚚',
+  'Other / General': '🌐',
+  'All Sectors': '🔍'
 };
 
-function ThreatBadge({ level }: { level: string }) {
-  const cfg = THREAT_CONFIG[level?.toUpperCase()] || THREAT_CONFIG.LOW;
+function ConfidenceBadge({ score, level }: { score?: number; level?: string }) {
+  if (score === undefined && !level) return null;
+  const numScore = score ?? 0;
+  let bg = 'bg-slate-100 text-slate-700 border-slate-200';
+  let dotBg = 'bg-slate-400';
+
+  if (numScore >= 75 || level === 'HIGH') {
+    bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    dotBg = 'bg-emerald-500';
+  } else if (numScore >= 50 || level === 'MEDIUM') {
+    bg = 'bg-amber-50 text-amber-800 border-amber-300';
+    dotBg = 'bg-amber-500';
+  } else {
+    bg = 'bg-slate-100 text-slate-600 border-slate-300';
+    dotBg = 'bg-slate-400';
+  }
+
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${cfg.bg} ${cfg.color}`}>
-      {cfg.icon}
-      {cfg.label}
+    <span 
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold border ${bg} shadow-xs`}
+      title={`Confidence Score: ${numScore}%`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${dotBg}`}></span>
+      <span>{numScore}%</span>
+      <span className="text-[10px] font-semibold opacity-85">({level || (numScore >= 75 ? 'HIGH' : numScore >= 50 ? 'MED' : 'LOW')})</span>
     </span>
   );
 }
 
-function highlightText(text: string, query: string, isFuzzy: boolean): React.ReactNode {
+function highlightText(text: string, query: string): React.ReactNode {
   if (!query || !query.trim()) return text;
   
-  let patternStr = "";
-  if (isFuzzy) {
-    const charMap: Record<string, string> = {
-      'a': '[aA4@\\^]', 'b': '[bB8]', 'c': '[cC]', 'd': '[dD]',
-      'e': '[eE3]', 'f': '[fF]', 'g': '[gG69]', 'h': '[hH]',
-      'i': '[iIlL1!|]', 'j': '[jJ]', 'k': '[kK]', 'l': '[lLiI1!|]',
-      'm': '[mM]', 'n': '[nN]', 'o': '[oO0]', 'p': '[pP]',
-      'q': '[qQ]', 'r': '[rR]', 's': '[sS5$]', 't': '[tT7+]',
-      'u': '[uU]', 'v': '[vV]', 'w': '[wW]', 'x': '[xX]',
-      'y': '[yY]', 'z': '[zZ2]'
-    };
-    for (const char of query.trim().toLowerCase()) {
-      if (char in charMap) {
-        patternStr += charMap[char];
-      } else {
-        patternStr += char.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      }
-    }
-  } else {
-    patternStr = query.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  }
-
+  const patternStr = query.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
   const splitRegex = new RegExp(`(${patternStr})`, 'gi');
   const matchRegex = new RegExp(`^(${patternStr})$`, 'i');
   
@@ -71,14 +102,14 @@ function formatDate(dateStr: string) {
   }
 }
 
-const THREAT_LEVELS = ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-
 export const GlobalSearchPage: React.FC = () => {
   const [query, setQuery] = useState('');
-  const [threatFilter, setThreatFilter] = useState('ALL');
-  const [isFuzzy, setIsFuzzy] = useState(false);
+  const [selectedSector, setSelectedSector] = useState<string>('All Sectors');
+  const [sectors, setSectors] = useState<string[]>(DEFAULT_SECTORS);
+  const [minConfidenceFilter, setMinConfidenceFilter] = useState<number>(0);
   const [results, setResults] = useState<Message[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [sectorStats, setSectorStats] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
@@ -94,6 +125,11 @@ export const GlobalSearchPage: React.FC = () => {
 
   useEffect(() => {
     getChannels().then(setChannels).catch(console.error);
+    getSearchSectors().then(loaded => {
+      if (loaded && loaded.length > 0) {
+        setSectors(loaded);
+      }
+    }).catch(console.error);
   }, []);
 
   const getChannelName = useCallback((msg: Message) => {
@@ -105,9 +141,14 @@ export const GlobalSearchPage: React.FC = () => {
     return msg.channel_id;
   }, [channels]);
 
-  const doSearch = useCallback(async (q: string, tl: string, fuzz: boolean) => {
+  const doSearch = useCallback(async (
+    q: string, 
+    sec: string, 
+    minConf?: number
+  ) => {
     if (!q.trim()) {
       setResults([]);
+      setSectorStats({});
       setSearched(false);
       setPage(1);
       setHasMore(false);
@@ -117,9 +158,18 @@ export const GlobalSearchPage: React.FC = () => {
     setError('');
     setPage(1);
     try {
-      const data = await globalSearch(q.trim(), tl === 'ALL' ? undefined : tl, fuzz, 1, 50);
+      const data = await globalSearch(
+        q.trim(), 
+        undefined, 
+        false, 
+        1, 
+        50,
+        sec === 'All Sectors' ? undefined : sec,
+        minConf && minConf > 0 ? minConf : undefined
+      );
       setResults(data.results);
       setHasMore(data.has_more);
+      setSectorStats(data.sector_stats || {});
       setSearched(true);
     } catch (e) {
       setError('Search failed. Please ensure the backend is running.');
@@ -128,12 +178,25 @@ export const GlobalSearchPage: React.FC = () => {
     }
   }, []);
 
+  const triggerManualSearch = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    doSearch(query, selectedSector, minConfidenceFilter);
+  };
+
   const loadNextPage = useCallback(async () => {
     if (!query.trim() || !hasMore || loadingMore || loading) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const data = await globalSearch(query.trim(), threatFilter === 'ALL' ? undefined : threatFilter, isFuzzy, nextPage, 50);
+      const data = await globalSearch(
+        query.trim(), 
+        undefined, 
+        false, 
+        nextPage, 
+        50,
+        selectedSector === 'All Sectors' ? undefined : selectedSector,
+        minConfidenceFilter > 0 ? minConfidenceFilter : undefined
+      );
       setResults(prev => [...prev, ...data.results]);
       setHasMore(data.has_more);
       setPage(nextPage);
@@ -142,7 +205,7 @@ export const GlobalSearchPage: React.FC = () => {
     } finally {
       setLoadingMore(false);
     }
-  }, [query, threatFilter, isFuzzy, page, hasMore, loading, loadingMore]);
+  }, [query, selectedSector, minConfidenceFilter, page, hasMore, loading, loadingMore]);
 
   // Set up intersection observer for infinite scroll
   useEffect(() => {
@@ -162,19 +225,21 @@ export const GlobalSearchPage: React.FC = () => {
     return () => observer.disconnect();
   }, [hasMore, loading, loadingMore, loadNextPage]);
 
+  // Debounce search when query, selectedSector, minConfidenceFilter changes
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      doSearch(query, threatFilter, isFuzzy);
+      doSearch(query, selectedSector, minConfidenceFilter);
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, threatFilter, isFuzzy, doSearch]);
+  }, [query, selectedSector, minConfidenceFilter, doSearch]);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const clearSearch = () => {
     setQuery('');
     setResults([]);
+    setSectorStats({});
     setSearched(false);
     setPage(1);
     setHasMore(false);
@@ -194,85 +259,115 @@ export const GlobalSearchPage: React.FC = () => {
       <div className="space-y-1">
         <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
           <Search className="w-6 h-6 text-blue-600" />
-          Global Message Search
+          Global Message Search & Sector Intelligence
         </h1>
         <p className="text-sm text-slate-500">
-          Search across <span className="font-semibold text-slate-700">all monitored channels</span> simultaneously in real-time.
+          Contextual sector-aware keyword search with confidence scoring across <span className="font-semibold text-slate-700">all monitored channels</span>.
         </p>
       </div>
 
-      {/* Search Bar */}
+      {/* Search Bar & Sector Filter Box */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-          <input
-            ref={inputRef}
-            id="global-search-input"
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search keywords, CVEs, usernames, wallet addresses, domains…"
-            className="w-full pl-12 pr-12 py-3.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-          />
-          {query && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Threat Filter & Fuzzy Logic Panel */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
-          {/* Threat Filter Pills */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-            <span className="text-xs text-slate-500 font-medium">Severity:</span>
-            {THREAT_LEVELS.map(lvl => (
+        {/* Main Search Controls */}
+        <div className="flex flex-col md:flex-row items-stretch gap-3">
+          {/* Query Input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+            <input
+              ref={inputRef}
+              id="global-search-input"
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') triggerManualSearch(); }}
+              placeholder="Search keywords (e.g. 'bank', 'credentials', 'CVE-2024')…"
+              className="w-full pl-12 pr-12 py-3 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+            />
+            {query && (
               <button
-                key={lvl}
-                id={`filter-${lvl.toLowerCase()}`}
-                onClick={() => setThreatFilter(lvl)}
-                className={`px-3 py-1 rounded-full text-xs font-bold border transition ${
-                  threatFilter === lvl
-                    ? 'bg-blue-600 text-white border-blue-600 shadow'
-                    : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
-                }`}
+                onClick={clearSearch}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
+                title="Clear input"
               >
-                {lvl}
+                <X className="w-4 h-4" />
               </button>
-            ))}
+            )}
           </div>
 
-          {/* Fuzzy Obfuscation Toggle */}
-          <div className="flex items-center gap-2 shrink-0">
-            <label className="relative inline-flex items-center cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={isFuzzy}
-                onChange={e => setIsFuzzy(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-slate-200 hover:bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-              <span className="ml-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors">
-                Fuzzy Obfuscation Search (1nt3l, g00gl3)
-              </span>
-            </label>
+          {/* Sector Filter Dropdown */}
+          <div className="md:w-80 flex flex-col justify-center">
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-base pointer-events-none select-none">
+                {SECTOR_ICONS[selectedSector] || '🌐'}
+              </div>
+              <select
+                id="sector-filter-select"
+                value={selectedSector}
+                onChange={e => setSelectedSector(e.target.value)}
+                className="w-full pl-9 pr-8 py-3 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer hover:bg-slate-100 transition shadow-xs"
+              >
+                {sectors.map(sec => (
+                  <option key={sec} value={sec}>
+                    {sec === 'All Sectors' ? '🔍 All Sectors (General)' : `${SECTOR_ICONS[sec] || '🏷️'} ${sec}`}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                ▼
+              </div>
+            </div>
+          </div>
+
+          {/* Search Button */}
+          <button
+            id="global-search-button"
+            onClick={triggerManualSearch}
+            disabled={loading || !query.trim()}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            <span>Search</span>
+          </button>
+        </div>
+
+        {/* Secondary Filter Row: Confidence threshold */}
+        <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
+          {/* Confidence Threshold Pills */}
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-xs text-slate-500 font-medium">Confidence:</span>
+            <div className="flex items-center gap-1">
+              {[
+                { label: 'All', val: 0 },
+                { label: '≥ 50% (Med)', val: 50 },
+                { label: '≥ 75% (High)', val: 75 }
+              ].map(opt => (
+                <button
+                  key={opt.val}
+                  onClick={() => setMinConfidenceFilter(opt.val)}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border transition ${
+                    minConfidenceFilter === opt.val
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:text-emerald-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Loading */}
+      {/* Loading Indicator */}
       {loading && (
         <div className="flex items-center justify-center gap-3 py-10 text-slate-500">
           <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-          <span className="text-sm font-medium">Searching all channels…</span>
+          <span className="text-sm font-medium">Running context-aware search across all channels…</span>
         </div>
       )}
 
-      {/* Error */}
+      {/* Error Banner */}
       {error && !loading && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 font-medium">
           {error}
@@ -283,28 +378,65 @@ export const GlobalSearchPage: React.FC = () => {
       {!loading && searched && results.length > 0 && (
         <div className="space-y-3">
           {/* Quick Summary Banner */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-xl shadow-md border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-800 text-white p-4 rounded-xl shadow-md border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-0.5">
-              <div className="text-xs opacity-75 font-semibold uppercase tracking-wider">Search Results Summary</div>
+              <div className="text-xs opacity-80 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                Sector-Aware Context Search Results
+              </div>
               <div className="text-sm font-bold">
-                Found <span className="underline underline-offset-4 decoration-2 decoration-white">{results.length} matchings</span> across <span className="underline underline-offset-4 decoration-2 decoration-white">{Object.keys(channelCounts).length} channel{Object.keys(channelCounts).length !== 1 ? 's' : ''}</span>
+                Found <span className="underline underline-offset-4 decoration-2 decoration-white">{results.length} contextual matches</span> across{' '}
+                <span className="underline underline-offset-4 decoration-2 decoration-white">
+                  {Object.keys(channelCounts).length} channel{Object.keys(channelCounts).length !== 1 ? 's' : ''}
+                </span>{' '}
+                for filter: <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{selectedSector}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] bg-white/20 px-2 py-1 rounded-md font-mono">Fast MongoDB Text Indexed Search</span>
+              <span className="text-[10px] bg-white/15 px-2.5 py-1 rounded-md font-mono border border-white/20">
+                Confidence Scoring Active
+              </span>
             </div>
           </div>
 
+          {/* Sector Breakdown Pills (Clickable to switch sector) */}
+          {Object.keys(sectorStats).length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 bg-white p-3 rounded-xl border border-slate-200">
+              <span className="text-slate-500 flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5" />
+                Sector Breakdown:
+              </span>
+              {Object.entries(sectorStats).map(([sec, count]) => (
+                <button
+                  key={sec}
+                  onClick={() => setSelectedSector(sec)}
+                  className={`border text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-2xs transition flex items-center gap-1.5 ${
+                    selectedSector === sec
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-slate-50 hover:bg-blue-50 border-slate-200 text-slate-700 hover:text-blue-700'
+                  }`}
+                  title={`Filter by ${sec}`}
+                >
+                  <span>{SECTOR_ICONS[sec] || '🏷️'}</span>
+                  <span>{sec}</span>
+                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${selectedSector === sec ? 'bg-blue-700 text-white' : 'bg-slate-200 text-blue-700'}`}>
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Breakdown by Channels */}
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
-            <span className="text-slate-500">Breakdown:</span>
+            <span className="text-slate-500">Channels:</span>
             {Object.entries(channelCounts).slice(0, 8).map(([name, count]) => (
-              <div key={name} className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow-sm">
+              <div key={name} className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-2xs">
                 {name} <span className="ml-1 bg-slate-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px]">{count}</span>
               </div>
             ))}
             {Object.keys(channelCounts).length > 8 && (
-              <div className="text-[11px] text-slate-400 font-bold bg-slate-100 px-2.5 py-1.5 rounded-lg">
+              <div className="text-[11px] text-slate-400 font-bold bg-slate-100 px-2.5 py-1 rounded-lg">
                 +{Object.keys(channelCounts).length - 8} more channels
               </div>
             )}
@@ -319,11 +451,11 @@ export const GlobalSearchPage: React.FC = () => {
             <table className="w-full text-sm text-left">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wide">
-                  <th className="px-4 py-3 w-36">Date</th>
-                  <th className="px-4 py-3 w-32">Sender</th>
-                  <th className="px-4 py-3 w-44">Channel Name</th>
-                  <th className="px-4 py-3">Message</th>
-                  <th className="px-4 py-3 w-12"></th>
+                  <th className="px-4 py-3 w-32">Date</th>
+                  <th className="px-4 py-3 w-40">Channel / Sender</th>
+                  <th className="px-4 py-3 w-56">Sector & Confidence</th>
+                  <th className="px-4 py-3">Matched Message</th>
+                  <th className="px-4 py-3 w-12 text-center">Open</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -331,43 +463,78 @@ export const GlobalSearchPage: React.FC = () => {
                   <tr
                     key={msg.id || idx}
                     onClick={() => window.open(`/channel/${msg.channel_id}?highlight=${msg.id}`, '_blank')}
-                    className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                    className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                   >
                     {/* Date */}
-                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
-                      {formatDate(msg.date)}
-                    </td>
-
-                    {/* Sender */}
-                    <td className="px-4 py-3">
-                      <span className="text-slate-700 font-medium text-xs truncate block max-w-[120px]" title={msg.sender}>
-                        {highlightText(msg.sender || 'Anonymous', query, isFuzzy)}
-                      </span>
-                    </td>
-
-                    {/* Channel Name */}
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800 truncate max-w-[160px]" title={getChannelName(msg)}>
-                        {getChannelName(msg)}
+                    <td className="px-4 py-3 align-top">
+                      <div className="text-slate-500 text-xs whitespace-nowrap font-medium">
+                        {formatDate(msg.date)}
                       </div>
                     </td>
 
+                    {/* Channel & Sender */}
+                    <td className="px-4 py-3 space-y-1 align-top">
+                      <div className="font-bold text-slate-800 truncate max-w-[150px]" title={getChannelName(msg)}>
+                        {getChannelName(msg)}
+                      </div>
+                      <div className="text-slate-500 text-xs truncate max-w-[130px]" title={msg.sender || 'Anonymous'}>
+                        👤 {highlightText(msg.sender || 'Anonymous', query)}
+                      </div>
+                    </td>
+
+                    {/* Sector & Confidence Column */}
+                    <td className="px-4 py-3 space-y-1.5 align-top">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <ConfidenceBadge score={msg.confidence_score} level={msg.confidence_level} />
+                        <span 
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200"
+                          title={`Sector: ${msg.detected_sector || 'General'}`}
+                        >
+                          <span>{SECTOR_ICONS[msg.detected_sector || ''] || '🏷️'}</span>
+                          <span className="truncate max-w-[120px]">{msg.detected_sector || 'General'}</span>
+                        </span>
+                      </div>
+
+                      {/* Matched Context Keywords */}
+                      {msg.matched_context_keywords && msg.matched_context_keywords.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                          {msg.matched_context_keywords.slice(0, 3).map((kw, i) => (
+                            <span key={i} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono border border-slate-200">
+                              #{kw}
+                            </span>
+                          ))}
+                          {msg.matched_context_keywords.length > 3 && (
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              +{msg.matched_context_keywords.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Reason snippet */}
+                      {msg.relevance_reason && (
+                        <div className="text-[10px] text-slate-500 leading-tight line-clamp-1 italic" title={msg.relevance_reason}>
+                          {msg.relevance_reason}
+                        </div>
+                      )}
+                    </td>
+
                     {/* Message text with highlight */}
-                    <td className="px-4 py-3 max-w-[500px]">
-                      <p className="text-slate-700 text-xs leading-relaxed line-clamp-3 break-words">
-                        {highlightText(msg.text || '(no text)', query, isFuzzy)}
+                    <td className="px-4 py-3 align-top max-w-[500px]">
+                      <p className="text-slate-800 text-xs leading-relaxed line-clamp-4 break-words font-normal">
+                        {highlightText(msg.text || '(no text)', query)}
                       </p>
                     </td>
 
                     {/* Open channel link */}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 text-center align-top">
                       <button
-                        title="Open channel and highlight message"
+                        title="Open message in channel"
                         onClick={(e) => {
                           e.stopPropagation();
                           window.open(`/channel/${msg.channel_id}?highlight=${msg.id}`, '_blank');
                         }}
-                        className="opacity-0 group-hover:opacity-100 transition p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600"
+                        className="opacity-60 group-hover:opacity-100 transition p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600"
                       >
                         <ExternalLink className="w-4 h-4" />
                       </button>
@@ -383,12 +550,12 @@ export const GlobalSearchPage: React.FC = () => {
             {loadingMore ? (
               <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                <span>Loading more results...</span>
+                <span>Loading more contextual results...</span>
               </div>
             ) : hasMore ? (
               <span className="text-slate-400 text-xs font-medium animate-pulse">Scroll down to load more</span>
             ) : (
-              <span className="text-slate-400 text-xs font-medium">All results loaded</span>
+              <span className="text-slate-400 text-xs font-medium">All matching results loaded</span>
             )}
           </div>
         </div>
@@ -398,10 +565,20 @@ export const GlobalSearchPage: React.FC = () => {
       {!loading && searched && results.length === 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3">
           <Search className="w-10 h-10 text-slate-300 mx-auto" />
-          <p className="text-slate-700 font-semibold text-base">No messages found</p>
-          <p className="text-slate-400 text-sm">
-            No messages matched <span className="font-medium text-slate-600">"{query}"</span> across any monitored channel.
+          <p className="text-slate-700 font-semibold text-base">No contextually matching messages found</p>
+          <p className="text-slate-400 text-sm max-w-lg mx-auto">
+            No messages matched <span className="font-medium text-slate-600">"{query}"</span> in sector{' '}
+            <span className="font-semibold text-slate-600">{selectedSector}</span>
+            {minConfidenceFilter > 0 ? ` with confidence ≥ ${minConfidenceFilter}%` : ''}.
           </p>
+          <div className="pt-2">
+            <button
+              onClick={() => { setSelectedSector('All Sectors'); setMinConfidenceFilter(0); }}
+              className="text-xs text-blue-600 hover:text-blue-800 font-semibold underline"
+            >
+              Reset to "All Sectors" & Any Confidence
+            </button>
+          </div>
         </div>
       )}
 
@@ -411,18 +588,28 @@ export const GlobalSearchPage: React.FC = () => {
           <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto">
             <Search className="w-7 h-7 text-blue-500" />
           </div>
-          <p className="text-slate-700 font-semibold text-base">Start typing to search</p>
+          <p className="text-slate-700 font-semibold text-base">Sector-Aware Context Search</p>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Results from <span className="font-medium text-slate-600">all monitored Telegram channels</span> will appear here in real-time as you type.
+            Select a target sector or keep <span className="font-medium text-slate-600">All Sectors</span> to filter out false positives and view confidence-scored findings.
           </p>
           <div className="flex flex-wrap justify-center gap-2 pt-2">
-            {['CVE-2024', 'ransomware', 'leaked', 'bitcoin', 'shell'].map(hint => (
+            {[
+              { q: 'bank', s: 'Banking & Financial Services' },
+              { q: 'credentials', s: 'Cybersecurity' },
+              { q: 'payment gateway', s: 'FinTech & Payments' },
+              { q: 'patient records', s: 'Healthcare' },
+              { q: 'CVE-2024', s: 'Technology & Software' }
+            ].map(hint => (
               <button
-                key={hint}
-                onClick={() => setQuery(hint)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-semibold rounded-full border border-slate-200 hover:border-blue-300 transition"
+                key={hint.q}
+                onClick={() => {
+                  setQuery(hint.q);
+                  setSelectedSector(hint.s);
+                }}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-semibold rounded-full border border-slate-200 hover:border-blue-300 transition flex items-center gap-1.5"
               >
-                {hint}
+                <span>{SECTOR_ICONS[hint.s] || '🔍'}</span>
+                <span>"{hint.q}" in {hint.s}</span>
               </button>
             ))}
           </div>

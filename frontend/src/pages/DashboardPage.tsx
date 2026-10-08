@@ -3,14 +3,15 @@ import {
   Radio, RefreshCw, ArrowRight, CheckSquare, Square, 
   Terminal, PlayCircle, MessageSquare, Briefcase, Search, MoreVertical,
   Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, ShieldAlert, Check, X,
-  Activity, Layers, ExternalLink
+  Activity, Layers, ExternalLink, Zap, PauseCircle, Play
 } from 'lucide-react';
 import { 
   getChannels, getMessages, toggleChannelMonitoring, startScraping, 
   getScraperStatus, deleteChannel, scrapeSingleChannel, syncTelegramChannels, 
-  getMessageCount, getDailyMessageStats 
+  getMessageCount, getDailyMessageStats,
+  getAutoMonitorStatus, toggleAutoMonitor, enableAllAutoMonitor
 } from '../services/api';
-import { Channel, Message, ScraperStatus, DailyStatsResponse, DailyStatItem } from '../types';
+import { Channel, Message, ScraperStatus, DailyStatsResponse, DailyStatItem, AutoMonitorStatus } from '../types';
 
 export const DashboardPage: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -18,6 +19,9 @@ export const DashboardPage: React.FC = () => {
   const [msgCount, setMsgCount] = useState<{ total: number; total_on_disk: number; per_channel_on_disk: Record<string, number> }>({ total: 0, total_on_disk: 0, per_channel_on_disk: {} });
   const [dailyStats, setDailyStats] = useState<DailyStatsResponse | null>(null);
   const [status, setStatus] = useState<ScraperStatus>({ is_scraping: false, progress: 0, current_channel: '', logs: [], scrape_queue: [], completed_channels: [], total_channels_count: 0 });
+  const [autoMonitor, setAutoMonitor] = useState<AutoMonitorStatus | null>(null);
+  const [togglingAuto, setTogglingAuto] = useState(false);
+  const [enablingAll, setEnablingAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
@@ -50,17 +54,21 @@ export const DashboardPage: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [chData, msgData, countData, dailyData] = await Promise.all([
+      const [chData, msgData, countData, dailyData, autoData] = await Promise.all([
         getChannels(),
         getMessages(),
         getMessageCount(),
         getDailyMessageStats().catch(() => null),
+        getAutoMonitorStatus().catch(() => null),
       ]);
       setChannels(chData);
       setMessages(msgData);
       setMsgCount(countData);
       if (dailyData) {
         setDailyStats(dailyData);
+      }
+      if (autoData) {
+        setAutoMonitor(autoData);
       }
     } catch (e) {
       console.error("Dashboard fetch error:", e);
@@ -81,6 +89,9 @@ export const DashboardPage: React.FC = () => {
       try {
         const st = JSON.parse(event.data);
         setStatus(st);
+        if (st.auto_monitor) {
+          setAutoMonitor(st.auto_monitor);
+        }
         
         if (wasScraping && !st.is_scraping) {
           fetchData();
@@ -99,6 +110,32 @@ export const DashboardPage: React.FC = () => {
       eventSource.close();
     };
   }, []);
+
+  const handleToggleAutoMonitor = async () => {
+    setTogglingAuto(true);
+    try {
+      const res = await toggleAutoMonitor();
+      setAutoMonitor(res);
+      await fetchData();
+    } catch (e) {
+      console.error("Failed to toggle 24/7 auto monitor:", e);
+    } finally {
+      setTogglingAuto(false);
+    }
+  };
+
+  const handleEnableAllAutoMonitor = async () => {
+    setEnablingAll(true);
+    try {
+      const res = await enableAllAutoMonitor();
+      setAutoMonitor(res.auto_monitor);
+      await fetchData();
+    } catch (e) {
+      console.error("Failed to enable 24/7 on all channels:", e);
+    } finally {
+      setEnablingAll(false);
+    }
+  };
 
   const handleSyncAccount = async () => {
     setSyncing(true);
@@ -308,6 +345,122 @@ export const DashboardPage: React.FC = () => {
             <PlayCircle className="w-3.5 h-3.5" />
             Scrape Selected
           </button>
+        </div>
+      </div>
+
+      {/* 24/7 Autonomous Monitoring Command Card */}
+      <div className={`p-4 rounded-xl border transition-all shadow-sm ${
+        autoMonitor?.enabled 
+          ? 'bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-cyan-500/10 border-emerald-500/30' 
+          : 'bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/30'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shadow-sm shrink-0 ${
+              autoMonitor?.enabled 
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600' 
+                : 'bg-amber-500/20 border-amber-500/40 text-amber-600'
+            }`}>
+              <Radio className={`w-5 h-5 ${autoMonitor?.enabled ? 'animate-pulse' : ''}`} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-slate-800 tracking-tight">
+                  24/7 Autonomous Threat Monitoring
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                  autoMonitor?.enabled
+                    ? 'bg-emerald-500/20 text-emerald-700 border-emerald-500/30 flex items-center gap-1'
+                    : 'bg-amber-500/20 text-amber-700 border-amber-500/30'
+                }`}>
+                  {autoMonitor?.enabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />}
+                  {autoMonitor?.enabled ? 'ACTIVE' : 'PAUSED'}
+                </span>
+                {autoMonitor?.live_listener_active && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/15 text-cyan-700 border border-cyan-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 inline-block" />
+                    Live Telegram Listener Online
+                  </span>
+                )}
+                {autoMonitor?.is_sweeping && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-700 border border-blue-500/30 animate-pulse">
+                    Sweeping Channels...
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-[11px] text-slate-500 mt-2 flex-wrap">
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-slate-400" />
+                  Sweep Interval: <strong className="text-slate-700 font-semibold">{autoMonitor?.interval_display || (autoMonitor?.interval_minutes === 1440 ? '24h' : (autoMonitor?.interval_minutes ? `${autoMonitor.interval_minutes}m` : '24h'))}</strong>
+                </span>
+                {autoMonitor?.last_sweep_at && (
+                  <span>
+                    Last Ingestion: <strong className="text-slate-700 font-semibold">{autoMonitor.last_sweep_at.replace(' IST', '')}</strong>
+                  </span>
+                )}
+                <span>
+                  Next Sweep: <strong className="text-slate-700 font-semibold">{(() => {
+                    if (autoMonitor?.last_sweep_at) {
+                      try {
+                        const cleanStr = autoMonitor.last_sweep_at.replace(' IST', '').trim();
+                        const lastDate = new Date(cleanStr.includes('T') ? cleanStr : cleanStr.replace(' ', 'T'));
+                        if (!isNaN(lastDate.getTime())) {
+                          const nextDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
+                          return nextDate.toLocaleString('en-IN', {
+                            day: '2-digit', month: 'short',
+                            hour: '2-digit', minute: '2-digit',
+                            hour12: false
+                          });
+                        }
+                      } catch {
+                        // Fallback
+                      }
+                    }
+                    if (autoMonitor?.next_sweep_at) {
+                      return autoMonitor.next_sweep_at.replace(' IST', '');
+                    }
+                    return 'In 24h';
+                  })()}</strong>
+                </span>
+                <span>
+                  Channels Active: <strong className="text-slate-700 font-semibold">{monitoredList.length} / {channels.length}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+            <button
+              onClick={handleEnableAllAutoMonitor}
+              disabled={enablingAll}
+              title="Automatically enable 24/7 continuous monitoring on ALL channels"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+            >
+              <Zap className={`w-3.5 h-3.5 ${enablingAll ? 'animate-spin' : ''}`} />
+              {enablingAll ? 'Enabling...' : 'Enable All 24/7'}
+            </button>
+            <button
+              onClick={handleToggleAutoMonitor}
+              disabled={togglingAuto}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border shadow-sm ${
+                autoMonitor?.enabled
+                  ? 'border-amber-500/40 hover:bg-amber-500/10 text-amber-700 bg-amber-500/5'
+                  : 'border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 bg-emerald-500/5'
+              }`}
+            >
+              {autoMonitor?.enabled ? (
+                <>
+                  <PauseCircle className="w-3.5 h-3.5" />
+                  {togglingAuto ? 'Updating...' : 'Pause 24/7'}
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5" />
+                  {togglingAuto ? 'Updating...' : 'Resume 24/7'}
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

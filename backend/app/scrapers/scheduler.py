@@ -454,6 +454,117 @@ async def generate_auto_report_task(channel_id: str):
         telegram_scraper.log(f"⚠ PDF Report compilation failed: {e}")
         store.add_notification("error", f"⚠ PDF compilation failed for '{ch['title']}': {e}")
 
+class AutoMonitorState:
+    def __init__(self):
+        from ..config import settings
+        self.enabled: bool = getattr(settings, "AUTO_MONITOR_24_7", True)
+        self.interval_minutes: int = getattr(settings, "AUTO_MONITOR_INTERVAL_MINUTES", 1440)
+        self.last_sweep_at: str = ""
+        self.next_sweep_at: str = ""
+        self.is_sweeping: bool = False
+        self.channels_swept: int = 0
+        self.total_messages_collected: int = 0
+        self.last_status: str = "24/7 Autonomous Monitor active."
+
+auto_monitor = AutoMonitorState()
+
+def enable_all_channels_247() -> int:
+    """Turn ON 24/7 monitoring, auto AI cycles, and reporting for all current channels."""
+    count = 0
+    for ch in store.channels.values():
+        ch["is_monitored"] = True
+        ch["is_auto_monitoring"] = True
+        ch["monitoring_interval_value"] = 24 if auto_monitor.interval_minutes == 1440 else auto_monitor.interval_minutes
+        ch["monitoring_interval_unit"] = "hours" if auto_monitor.interval_minutes == 1440 else "minutes"
+        ch["is_auto_ai"] = True
+        ch["ai_interval_value"] = 30
+        ch["ai_interval_unit"] = "minutes"
+        ch["is_auto_report"] = True
+        ch["report_interval_value"] = 24
+        ch["report_interval_unit"] = "hours"
+        count += 1
+    auto_monitor.enabled = True
+    auto_monitor.last_status = f"24/7 Auto-Monitoring active across {count} channels (24h sweep interval)."
+    logger.info(f"✓ Enabled 24/7 automated monitoring for all {count} channels (Sweep interval: 24h).")
+    return count
+
+def get_auto_monitor_status() -> dict:
+    """Return live telemetry status of the 24/7 autonomous monitor."""
+    monitored_channels = [c for c in store.channels.values() if c.get("is_monitored")]
+    interval_display = "24h" if auto_monitor.interval_minutes == 1440 else (
+        f"{auto_monitor.interval_minutes // 60}h" if auto_monitor.interval_minutes % 60 == 0
+        else f"{auto_monitor.interval_minutes}m"
+    )
+    return {
+        "enabled": auto_monitor.enabled,
+        "interval_minutes": auto_monitor.interval_minutes,
+        "interval_display": interval_display,
+        "is_sweeping": auto_monitor.is_sweeping,
+        "last_sweep_at": auto_monitor.last_sweep_at,
+        "next_sweep_at": auto_monitor.next_sweep_at,
+        "monitored_channels_count": len(monitored_channels),
+        "total_channels_count": len(store.channels),
+        "total_messages_collected": auto_monitor.total_messages_collected,
+        "live_listener_active": telegram_scraper.live_listener_active,
+        "status_message": auto_monitor.last_status
+    }
+
+async def run_247_autonomous_sweep():
+    """Perform a continuous background sweep across all monitored channels without user clicks."""
+    if not auto_monitor.enabled or auto_monitor.is_sweeping:
+        return
+
+    # If manual scraping is running in UI, yield to it
+    if telegram_scraper.is_scraping:
+        return
+
+    channels_to_sweep = [c for c in store.channels.values() if c.get("is_monitored", True)]
+    if not channels_to_sweep:
+        return
+
+    auto_monitor.is_sweeping = True
+    auto_monitor.last_status = f"Sweeping {len(channels_to_sweep)} channels in background..."
+    logger.info(f"🔄 Starting 24/7 auto-sweep across {len(channels_to_sweep)} channels...")
+
+    sweep_new_msgs = 0
+    channels_with_new_data = []
+
+    try:
+        for ch in channels_to_sweep:
+            if not auto_monitor.enabled or not scheduler_active:
+                break
+            # Skip if user initiated manual scrape
+            if telegram_scraper.is_scraping:
+                break
+
+            ch_id = ch["id"]
+            new_msgs = await telegram_scraper.scrape_single_channel_incremental(ch)
+            if new_msgs:
+                sweep_new_msgs += len(new_msgs)
+                channels_with_new_data.append(ch_id)
+
+            # Polite pause to prevent Telegram flood-wait rate limits
+            await asyncio.sleep(1.5)
+
+        now = datetime.now(IST)
+        auto_monitor.last_sweep_at = now.strftime("%Y-%m-%d %H:%M:%S IST")
+        auto_monitor.next_sweep_at = (now + timedelta(minutes=auto_monitor.interval_minutes)).strftime("%Y-%m-%d %H:%M:%S IST")
+        auto_monitor.total_messages_collected += sweep_new_msgs
+        auto_monitor.channels_swept = len(channels_to_sweep)
+        auto_monitor.last_status = f"Last sweep completed at {now.strftime('%H:%M:%S')} (+{sweep_new_msgs} new messages)."
+
+        if sweep_new_msgs > 0:
+            logger.info(f"✓ 24/7 Auto-Sweep complete: Ingested {sweep_new_msgs} new messages across {len(channels_with_new_data)} channels.")
+            # Trigger stateful AI cycle analysis on channels that got new data
+            for ch_id in channels_with_new_data:
+                asyncio.create_task(run_mini_ai_analysis_cycle(ch_id))
+
+    except Exception as e:
+        logger.error(f"Error during 24/7 auto-sweep: {e}")
+        auto_monitor.last_status = f"Sweep encountered error: {e}"
+    finally:
+        auto_monitor.is_sweeping = False
+
 async def scrape_channel_silent(channel_id: str):
     """Scrapes a channel silently and appends raw transcripts to the daily log."""
     ch = store.channels.get(channel_id)
@@ -487,33 +598,42 @@ async def scrape_channel_silent(channel_id: str):
         logger.error(f"Error during auto-scrape task for {channel_id}: {e}")
 
 async def run_scheduler():
-    """Persistent background task to scan and run auto-scrapes, auto-AI, and auto-Report timers."""
+    """Persistent background task to scan and run 24/7 auto-sweeps, live listener checks, and AI timers."""
     global scheduler_active
-    logger.info("Initializing automated target channel monitoring scheduler...")
+    from ..config import settings
+    logger.info("Initializing 24/7 automated target channel monitoring scheduler...")
+
+    # Wait briefly for startup initializations
+    await asyncio.sleep(5)
+
+    # Auto-enable 24/7 monitoring across all channels if configured
+    if getattr(settings, "AUTO_MONITOR_24_7", True):
+        enable_all_channels_247()
+
+    # Start live event listener immediately if authorized
+    if getattr(settings, "LIVE_LISTENER_ENABLED", True):
+        asyncio.create_task(telegram_scraper.start_live_listener())
+
+    next_sweep_time = datetime.now(IST) + timedelta(seconds=10)
+    auto_monitor.next_sweep_at = next_sweep_time.strftime("%Y-%m-%d %H:%M:%S IST")
     
     while scheduler_active:
         try:
             now = datetime.now(IST)
+
+            # Ensure live listener is connected
+            if not telegram_scraper.live_listener_active and getattr(settings, "LIVE_LISTENER_ENABLED", True):
+                asyncio.create_task(telegram_scraper.start_live_listener())
+
+            # 1. Run 24/7 Autonomous Sweep across all monitored channels
+            if auto_monitor.enabled and now >= next_sweep_time and not auto_monitor.is_sweeping:
+                next_sweep_time = now + timedelta(minutes=auto_monitor.interval_minutes)
+                auto_monitor.next_sweep_at = next_sweep_time.strftime("%Y-%m-%d %H:%M:%S IST")
+                asyncio.create_task(run_247_autonomous_sweep())
+
+            # 2. Check per-channel Auto-AI and Auto-Report schedules
             for ch_id, ch in list(store.channels.items()):
-                # 1. Check Auto-Scrape Schedule
-                if ch.get("is_auto_monitoring"):
-                    next_scrape = ch.get("next_scrape_at")
-                    if isinstance(next_scrape, str):
-                        try:
-                            next_scrape = datetime.fromisoformat(next_scrape.replace("Z", "+00:00"))
-                        except Exception:
-                            next_scrape = None
-
-                    if not next_scrape or now >= next_scrape:
-                        val = ch.get("monitoring_interval_value", 60)
-                        unit = ch.get("monitoring_interval_unit", "minutes")
-                        delta = timedelta(hours=val) if unit == "hours" else timedelta(minutes=val)
-                        ch["next_scrape_at"] = now + delta
-                        
-                        # Run silent scrape
-                        asyncio.create_task(scrape_channel_silent(ch_id))
-
-                # 2. Check Auto-AI Analysis Schedule (Cycle analyses)
+                # Check Auto-AI Analysis Schedule
                 if ch.get("is_auto_ai"):
                     next_ai = ch.get("next_ai_at")
                     if isinstance(next_ai, str):
@@ -523,22 +643,13 @@ async def run_scheduler():
                             next_ai = None
 
                     if not next_ai or now >= next_ai:
-                        ai_val = ch.get("ai_interval_value", 60)
+                        ai_val = ch.get("ai_interval_value", 30)
                         ai_unit = ch.get("ai_interval_unit", "minutes")
-                        
-                        if ai_unit == "days":
-                            delta = timedelta(days=ai_val)
-                        elif ai_unit == "hours":
-                            delta = timedelta(hours=ai_val)
-                        else:
-                            delta = timedelta(minutes=ai_val)
-                            
+                        delta = timedelta(days=ai_val) if ai_unit == "days" else (timedelta(hours=ai_val) if ai_unit == "hours" else timedelta(minutes=ai_val))
                         ch["next_ai_at"] = now + delta
-                        
-                        # Run automated AI cycle analysis
                         asyncio.create_task(run_mini_ai_analysis_cycle(ch_id))
 
-                # 3. Check Auto-PDF Report Schedule
+                # Check Auto-PDF Report Schedule
                 if ch.get("is_auto_report"):
                     next_report = ch.get("next_report_at")
                     if isinstance(next_report, str):
@@ -550,18 +661,10 @@ async def run_scheduler():
                     if not next_report or now >= next_report:
                         rep_val = ch.get("report_interval_value", 24)
                         rep_unit = ch.get("report_interval_unit", "hours")
-                        
-                        if rep_unit == "days":
-                            delta = timedelta(days=rep_val)
-                        elif rep_unit == "hours":
-                            delta = timedelta(hours=rep_val)
-                        else:
-                            delta = timedelta(minutes=rep_val)
-                            
+                        delta = timedelta(days=rep_val) if rep_unit == "days" else (timedelta(hours=rep_val) if rep_unit == "hours" else timedelta(minutes=rep_val))
                         ch["next_report_at"] = now + delta
-                        
-                        # Run automated PDF report generation
                         asyncio.create_task(generate_auto_report_task(ch_id))
+
         except Exception as e:
             logger.error(f"Scheduler loop error: {e}")
             

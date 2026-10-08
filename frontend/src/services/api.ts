@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Channel, Message, ThreatIntelligence, Report, ScraperStatus, IntelligenceSummary, TelegramUser, DailyStatsResponse } from '../types';
+import { Channel, Message, ThreatIntelligence, Report, ScraperStatus, IntelligenceSummary, TelegramUser, DailyStatsResponse, AutoMonitorStatus } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -130,16 +130,25 @@ export const getDailyMessageStats = async (channelId?: string, limitDays: number
   return res.data;
 };
 
+export const getSearchSectors = async (): Promise<string[]> => {
+  const res = await api.get('/messages/sectors');
+  return res.data?.sectors || [];
+};
+
 export const globalSearch = async (
   q: string, 
   threatLevel?: string, 
   fuzzy?: boolean,
   page: number = 1,
-  limit: number = 50
-): Promise<{ results: Message[]; has_more: boolean }> => {
+  limit: number = 50,
+  sector?: string,
+  minConfidence?: number
+): Promise<{ results: Message[]; has_more: boolean; total_matches?: number; sector_stats?: Record<string, number>; selected_sector?: string }> => {
   const params: Record<string, any> = { q, page, limit };
-  if (threatLevel) params.threat_level = threatLevel;
+  if (threatLevel && threatLevel !== 'ALL') params.threat_level = threatLevel;
   if (fuzzy) params.fuzzy = true;
+  if (sector && sector !== 'ALL' && sector !== 'All Sectors') params.sector = sector;
+  if (minConfidence !== undefined) params.min_confidence = minConfidence;
   const res = await api.get('/messages/global-search', { params });
   return res.data;
 };
@@ -211,6 +220,27 @@ export const getNotifications = async (): Promise<any[]> => {
 
 export const markNotificationsRead = async (): Promise<{ status: string }> => {
   const res = await api.post('/notifications/read-all');
+  return res.data;
+};
+
+// 24/7 Autonomous Monitoring Services
+export const getAutoMonitorStatus = async (): Promise<AutoMonitorStatus> => {
+  const res = await api.get('/scraper/auto-monitor');
+  return res.data;
+};
+
+export const toggleAutoMonitor = async (): Promise<AutoMonitorStatus> => {
+  const res = await api.post('/scraper/auto-monitor/toggle');
+  return res.data;
+};
+
+export const enableAllAutoMonitor = async (): Promise<{ status: string; channels_enabled: number; auto_monitor: AutoMonitorStatus }> => {
+  const res = await api.post('/scraper/auto-monitor/enable-all');
+  return res.data;
+};
+
+export const setAutoMonitorInterval = async (intervalMinutes: number): Promise<AutoMonitorStatus> => {
+  const res = await api.post(`/scraper/auto-monitor/interval?interval_minutes=${intervalMinutes}`);
   return res.data;
 };
 

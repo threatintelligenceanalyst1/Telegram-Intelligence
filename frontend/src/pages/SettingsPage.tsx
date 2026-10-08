@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Settings as SettingsIcon, Save, Key, Database, Cpu, Server, CheckCircle2, XCircle, Phone, ShieldCheck, AlertCircle, Send } from 'lucide-react';
-import { getTelegramAuthStatus, sendTelegramOtpCode, verifyTelegramOtpCode } from '../services/api';
+import { Settings as SettingsIcon, Save, Key, Database, Cpu, Server, CheckCircle2, XCircle, Phone, ShieldCheck, AlertCircle, Send, Radio, Zap, Clock } from 'lucide-react';
+import { getTelegramAuthStatus, sendTelegramOtpCode, verifyTelegramOtpCode, getAutoMonitorStatus, toggleAutoMonitor, enableAllAutoMonitor, setAutoMonitorInterval } from '../services/api';
+import { AutoMonitorStatus } from '../types';
 
 export const SettingsPage: React.FC = () => {
   // Telegram API & Phone Credentials
@@ -18,6 +19,11 @@ export const SettingsPage: React.FC = () => {
   const [authError, setAuthError] = useState('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState('');
 
+  // 24/7 Autonomous Monitoring States
+  const [autoMonitor, setAutoMonitor] = useState<AutoMonitorStatus | null>(null);
+  const [autoUpdating, setAutoUpdating] = useState(false);
+  const [intervalVal, setIntervalVal] = useState<number>(10);
+
   // Local LLM States
   const [localLlmUrl, setLocalLlmUrl] = useState('http://localhost:11434/api/generate');
   const [localLlmModel, setLocalLlmModel] = useState('llama3');
@@ -29,7 +35,18 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     checkTelegramAuth();
+    loadAutoMonitor();
   }, []);
+
+  const loadAutoMonitor = async () => {
+    try {
+      const res = await getAutoMonitorStatus();
+      setAutoMonitor(res);
+      setIntervalVal(res.interval_minutes || 1440);
+    } catch (e) {
+      console.error("Auto monitor error:", e);
+    }
+  };
 
   const checkTelegramAuth = async () => {
     try {
@@ -128,6 +145,40 @@ export const SettingsPage: React.FC = () => {
       setLlmTestResult('failed');
     } finally {
       setTestingLlm(false);
+    }
+  };
+
+  const handleToggleAuto = async () => {
+    setAutoUpdating(true);
+    try {
+      const res = await toggleAutoMonitor();
+      setAutoMonitor(res);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAutoUpdating(false);
+    }
+  };
+
+  const handleEnableAll = async () => {
+    setAutoUpdating(true);
+    try {
+      const res = await enableAllAutoMonitor();
+      setAutoMonitor(res.auto_monitor);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAutoUpdating(false);
+    }
+  };
+
+  const handleChangeInterval = async (val: number) => {
+    setIntervalVal(val);
+    try {
+      const res = await setAutoMonitorInterval(val);
+      setAutoMonitor(res);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -300,6 +351,82 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+        {/* 24/7 Autonomous Threat Monitoring Configuration Section */}
+        <div className={`glass-card p-6 rounded-2xl border space-y-4 ${
+          autoMonitor?.enabled ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'
+        }`}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Radio className={`w-4 h-4 ${autoMonitor?.enabled ? 'text-emerald-600 animate-pulse' : 'text-amber-600'}`} />
+              24/7 Autonomous Threat Monitoring Engine
+            </h3>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+              autoMonitor?.enabled 
+                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' 
+                : 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+            }`}>
+              {autoMonitor?.enabled ? '● 24/7 AUTOMATIC INGESTION ACTIVE' : '○ PAUSED'}
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-600">
+            When enabled, the backend continuously listens for real-time Telegram messages across all channels, executes automated regex and local LLM threat analysis, and updates the daily intelligence ledger without requiring manual button clicks.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Periodic Auto-Sweep Interval</label>
+              <select
+                value={intervalVal}
+                onChange={(e) => handleChangeInterval(Number(e.target.value))}
+                className="w-full bg-darkBg text-xs text-slate-800 px-3.5 py-2.5 rounded-xl border border-darkBorder focus:outline-none focus:border-emerald-500"
+              >
+                <option value={1440}>Every 24 hours (24h - Recommended)</option>
+                <option value={720}>Every 12 hours</option>
+                <option value={360}>Every 6 hours</option>
+                <option value={60}>Every 1 hour</option>
+                <option value={30}>Every 30 minutes</option>
+                <option value={10}>Every 10 minutes</option>
+                <option value={5}>Every 5 minutes</option>
+              </select>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Continuous sweep interval for missed posts & ledger reconciliation.
+              </span>
+            </div>
+
+            <div className="flex flex-col justify-end">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleToggleAuto}
+                  disabled={autoUpdating}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl transition-all border ${
+                    autoMonitor?.enabled
+                      ? 'border-amber-500/40 hover:bg-amber-500/10 text-amber-700 bg-amber-500/5'
+                      : 'border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 bg-emerald-500/5'
+                  }`}
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  {autoMonitor?.enabled ? 'Pause 24/7 Monitoring' : 'Resume 24/7 Monitoring'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleEnableAll}
+                  disabled={autoUpdating}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Enable All Channels
+                </button>
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1 block text-right">
+                {autoMonitor?.live_listener_active ? '📡 Live Event Listener: Connected' : 'Live listener active on authorized sessions'}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Local LLM Configuration Section */}
         <div className="glass-card p-6 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 space-y-4">
           <div className="flex items-center justify-between">

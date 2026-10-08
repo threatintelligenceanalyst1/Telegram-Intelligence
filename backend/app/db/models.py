@@ -46,6 +46,14 @@ class Message(BaseModel):
     media_url: Optional[str] = None
     threat_level: str = "LOW"  # LOW, MEDIUM, HIGH, CRITICAL
     analyzed: bool = False
+    # Context-aware search telemetry
+    confidence_score: Optional[int] = None
+    confidence_level: Optional[str] = None
+    detected_sector: Optional[str] = None
+    matched_context_keywords: Optional[List[str]] = []
+    is_contextual_match: Optional[bool] = None
+    relevance_reason: Optional[str] = None
+
 
 class ThreatIntelligence(BaseModel):
     id: str

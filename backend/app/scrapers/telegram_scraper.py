@@ -14,15 +14,15 @@ logger = logging.getLogger("darknet_monitor.scraper")
 # Try Telethon import
 telethon_available = False
 try:
-    from telethon import TelegramClient
+    from telethon import TelegramClient, events
     from telethon.tl.types import Channel as TelethonChannel, Chat as TelethonChat, User as TelethonUser
-    from telethon.errors import SessionPasswordNeededError, RPCError, ApiIdInvalidError, PhoneNumberInvalidError
+    from telethon.errors import SessionPasswordNeededError, RPCError, ApiIdInvalidError, PhoneNumberInvalidError, FloodWaitError
     telethon_available = True
 except ImportError:
     telethon_available = False
 
 class TelegramScraper:
-    """Telegram Scraper with first-time full scraping and incremental update checks."""
+    """Telegram Scraper with first-time full scraping, incremental update checks, and 24/7 continuous monitoring."""
 
     def __init__(self):
         self.is_scraping = False
@@ -39,6 +39,9 @@ class TelegramScraper:
         self.scrape_queue: List[str] = []      # channel titles yet to be scraped
         self.completed_channels: List[str] = [] # channel titles finished
         self.total_channels_count: int = 0
+        # 24/7 Live Event Listener
+        self.live_listener_active: bool = False
+        self._listener_attached: bool = False
 
     def stop(self):
         """Request a graceful stop of the current scraping job."""
@@ -269,6 +272,220 @@ class TelegramScraper:
         except Exception as e:
             logger.error(f"Error saving messages to CSV: {e}")
 
+    async def start_live_listener(self):
+        """Register live event listener for real-time 24/7 Telegram message collection."""
+        if not getattr(settings, "LIVE_LISTENER_ENABLED", True) or not telethon_available:
+            return
+
+        if self._listener_attached and self.live_listener_active:
+            return
+
+        client = await self.get_connected_client()
+        if not client:
+            return
+
+        try:
+            if not await client.is_user_authorized():
+                return
+        except Exception:
+            return
+
+        if self._listener_attached:
+            return
+
+        @client.on(events.NewMessage)
+        async def _live_message_handler(event):
+            try:
+                msg = event.message
+                if not msg or not msg.text:
+                    return
+
+                chat_id = str(event.chat_id)
+                # Find matching channel in store.channels
+                matched_channel = None
+                for ch_id, ch in list(store.channels.items()):
+                    if ch_id == chat_id or chat_id.endswith(ch_id.lstrip("-")) or ch_id.endswith(chat_id.lstrip("-")):
+                        matched_channel = ch
+                        break
+
+                ch_title = matched_channel.get("title", f"Telegram_{chat_id}") if matched_channel else f"Telegram_{chat_id}"
+                ch_id_str = matched_channel.get("id", chat_id) if matched_channel else chat_id
+
+                # If channel is not in store yet, dynamically register it
+                if not matched_channel:
+                    ch_type = "Channel" if getattr(event, "is_channel", False) else "Group"
+                    ch_data = {
+                        "id": ch_id_str,
+                        "username": f"@{getattr(event.chat, 'username', '')}" if getattr(event.chat, 'username', None) else ch_title,
+                        "raw_username": getattr(event.chat, 'username', '') or "",
+                        "title": ch_title,
+                        "description": f"Live Detected Telegram {ch_type}",
+                        "member_count": 0,
+                        "is_monitored": True,
+                        "last_scraped_at": None,
+                        "category": ch_type,
+                        "type": ch_type,
+                        "message_count": 0,
+                        "status": "idle",
+                        "is_auto_monitoring": True,
+                        "monitoring_interval_value": getattr(settings, "AUTO_MONITOR_INTERVAL_MINUTES", 10),
+                        "monitoring_interval_unit": "minutes",
+                        "next_scrape_at": None,
+                        "is_auto_ai": True,
+                        "ai_interval_value": 30,
+                        "ai_interval_unit": "minutes",
+                        "next_ai_at": None,
+                        "is_auto_report": True,
+                        "report_interval_value": 24,
+                        "report_interval_unit": "hours",
+                        "next_report_at": None
+                    }
+                    store.channels[ch_id_str] = ch_data
+                    matched_channel = ch_data
+
+                # Resolve sender
+                sender_desc = str(msg.sender_id or "unknown")
+                try:
+                    sender_obj = await msg.get_sender()
+                    if sender_obj:
+                        username = getattr(sender_obj, "username", None)
+                        if username:
+                            sender_desc = f"@{username} ({msg.sender_id})"
+                        else:
+                            fn = getattr(sender_obj, "first_name", "") or ""
+                            ln = getattr(sender_obj, "last_name", "") or ""
+                            name = f"{fn} {ln}".strip()
+                            if name:
+                                sender_desc = f"{name} ({msg.sender_id})"
+                except Exception:
+                    pass
+
+                msg_date = msg.date
+                msg_data = {
+                    "id": f"msg_{ch_id_str}_{msg.id}",
+                    "channel_id": str(ch_id_str),
+                    "channel_username": ch_title,
+                    "sender": sender_desc,
+                    "text": msg.text,
+                    "date": msg_date.isoformat() if msg_date else datetime.utcnow().isoformat(),
+                    "views": getattr(msg, "views", 10) or 10,
+                    "media_url": None,
+                    "threat_level": "LOW",
+                    "analyzed": False
+                }
+
+                # Save to MongoDB and daily CSV
+                await self._save_messages(ch_id_str, ch_title, [msg_data])
+                store.messages[msg_data["id"]] = msg_data
+
+                # Update channel stats
+                matched_channel["message_count"] = matched_channel.get("message_count", 0) + 1
+                matched_channel["last_scraped_at"] = datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat()
+
+                # Perform Threat Analysis in background thread
+                from ..llm.threat_analyzer import analyzer
+                intel = await asyncio.to_thread(analyzer.analyze_message, msg_data)
+                store.threat_intel[intel["id"]] = intel
+                msg_data["threat_level"] = intel["threat_level"]
+                msg_data["analyzed"] = True
+
+                threat_lvl = intel.get("threat_level", "LOW")
+                if threat_lvl in ["CRITICAL", "HIGH"]:
+                    store.add_notification("alert", f"🚨 [{threat_lvl}] Threat in '{ch_title}': {intel.get('summary', '')[:85]}")
+                    self.log(f"🚨 [24/7 LIVE ALERT] {threat_lvl} threat in '{ch_title}' from {sender_desc}!")
+                else:
+                    store.add_notification("message", f"📩 [24/7 Live] New post in '{ch_title}' from {sender_desc}")
+
+            except Exception as e:
+                logger.error(f"Error handling live Telegram message: {e}")
+
+        self._listener_attached = True
+        self.live_listener_active = True
+        self.log("📡 24/7 Real-Time Live Message Listener active! Monitoring incoming messages across all channels.")
+
+    async def scrape_single_channel_incremental(self, channel: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Silently perform an incremental scrape of a single channel for the 24/7 monitor."""
+        ch_id = channel.get("id")
+        ch_title = channel.get("title", ch_id)
+        raw_user = channel.get("raw_username", "")
+        target_entity = raw_user if raw_user else int(ch_id) if str(ch_id).lstrip("-").isdigit() else ch_id
+
+        client = await self.get_connected_client()
+        if not client:
+            return []
+
+        try:
+            if not await client.is_user_authorized():
+                return []
+        except Exception:
+            return []
+
+        latest_raw_id = await self._get_latest_saved_msg_id(ch_id, ch_title)
+        scraped_messages = []
+
+        try:
+            try:
+                entity = await client.get_entity(target_entity)
+            except Exception:
+                entity = target_entity
+
+            kwargs = {"limit": 1500}
+            if latest_raw_id > 0:
+                kwargs["min_id"] = latest_raw_id
+
+            async for message in client.iter_messages(entity, **kwargs):
+                if not message.text:
+                    continue
+
+                sender_desc = str(message.sender_id or "unknown")
+                try:
+                    sender_obj = await message.get_sender()
+                    if sender_obj:
+                        username = getattr(sender_obj, "username", None)
+                        if username:
+                            sender_desc = f"@{username} ({message.sender_id})"
+                        else:
+                            fn = getattr(sender_obj, "first_name", "") or ""
+                            ln = getattr(sender_obj, "last_name", "") or ""
+                            name = f"{fn} {ln}".strip()
+                            if name:
+                                sender_desc = f"{name} ({message.sender_id})"
+                except Exception:
+                    pass
+
+                msg_date = message.date
+                msg_data = {
+                    "id": f"msg_{ch_id}_{message.id}",
+                    "channel_id": str(ch_id),
+                    "channel_username": ch_title,
+                    "sender": sender_desc,
+                    "text": message.text,
+                    "date": msg_date.isoformat() if msg_date else datetime.utcnow().isoformat(),
+                    "views": getattr(message, "views", 10) or 10,
+                    "media_url": None,
+                    "threat_level": "LOW",
+                    "analyzed": False
+                }
+                scraped_messages.append(msg_data)
+
+            if scraped_messages:
+                await self._save_messages(ch_id, ch_title, scraped_messages)
+                for m in scraped_messages:
+                    store.messages[m["id"]] = m
+
+                channel["last_scraped_at"] = datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat()
+                channel["message_count"] = channel.get("message_count", 0) + len(scraped_messages)
+                self.log(f"✓ 24/7 Auto-Sweep: Ingested {len(scraped_messages)} new messages from '{ch_title}'")
+                store.add_notification("scrape", f"✓ 24/7 Sweep: Collected {len(scraped_messages)} new messages from '{ch_title}'")
+
+        except FloodWaitError as e:
+            self.log(f"⏳ Rate limit on '{ch_title}': sleeping {e.seconds}s...")
+            await asyncio.sleep(min(e.seconds, 60))
+        except Exception as e:
+            logger.warning(f"24/7 incremental scrape error on '{ch_title}': {e}")
+
+        return scraped_messages
+
 
     async def check_auth_status(self) -> Dict[str, Any]:
         """Check if Telethon user session is active and authorized."""
@@ -465,15 +682,15 @@ class TelegramScraper:
                         "type": ch_type,
                         "message_count": len(existing_msgs),
                         "status": "idle",
-                        "is_auto_monitoring": False,
-                        "monitoring_interval_value": 60,
+                        "is_auto_monitoring": getattr(settings, "AUTO_MONITOR_24_7", True),
+                        "monitoring_interval_value": getattr(settings, "AUTO_MONITOR_INTERVAL_MINUTES", 10),
                         "monitoring_interval_unit": "minutes",
                         "next_scrape_at": None,
-                        "is_auto_ai": False,
-                        "ai_interval_value": 60,
+                        "is_auto_ai": getattr(settings, "AUTO_MONITOR_24_7", True),
+                        "ai_interval_value": 30,
                         "ai_interval_unit": "minutes",
                         "next_ai_at": None,
-                        "is_auto_report": False,
+                        "is_auto_report": True,
                         "report_interval_value": 24,
                         "report_interval_unit": "hours",
                         "next_report_at": None
@@ -484,6 +701,8 @@ class TelegramScraper:
                     real_count += 1
 
                 self.log(f"✓ Successfully imported {real_count} REAL channels/groups from your Telegram account!")
+                # Start 24/7 real-time live listener if authorized
+                asyncio.create_task(self.start_live_listener())
                 return imported_channels
             except Exception as e:
                 self.log(f"Error syncing Telegram dialogs: {e}")
