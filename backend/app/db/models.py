@@ -53,6 +53,11 @@ class Message(BaseModel):
     matched_context_keywords: Optional[List[str]] = []
     is_contextual_match: Optional[bool] = None
     relevance_reason: Optional[str] = None
+    # Forensic Evidence Telemetry
+    evidence_screenshot_url: Optional[str] = None
+    evidence_hash: Optional[str] = None
+    evidence_captured_at: Optional[str] = None
+    message_link: Optional[str] = None
 
 
 class ThreatIntelligence(BaseModel):

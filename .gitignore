@@ -15,6 +15,7 @@ frontend/dist/
 .npm/
 data/
 data
+backend/data/
 .vscode/
 # Python Cache & Build
 __pycache__/

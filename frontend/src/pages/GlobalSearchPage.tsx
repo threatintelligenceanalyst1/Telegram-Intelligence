@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, ExternalLink, Loader2, X, Sparkles, Building2, SlidersHorizontal } from 'lucide-react';
+import { Search, ExternalLink, Loader2, X, Sparkles, Building2, SlidersHorizontal, FileText } from 'lucide-react';
 import { globalSearch, getChannels, getSearchSectors } from '../services/api';
 import { Message, Channel } from '../types';
+import { EvidenceModal } from '../components/EvidenceModal';
 
 const DEFAULT_SECTORS = [
   'All Sectors',
@@ -107,6 +108,7 @@ export const GlobalSearchPage: React.FC = () => {
   const [selectedSector, setSelectedSector] = useState<string>('All Sectors');
   const [sectors, setSectors] = useState<string[]>(DEFAULT_SECTORS);
   const [minConfidenceFilter, setMinConfidenceFilter] = useState<number>(0);
+  const [selectedEvidenceMessage, setSelectedEvidenceMessage] = useState<Message | null>(null);
   const [results, setResults] = useState<Message[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [sectorStats, setSectorStats] = useState<Record<string, number>>({});
@@ -455,7 +457,7 @@ export const GlobalSearchPage: React.FC = () => {
                   <th className="px-4 py-3 w-40">Channel / Sender</th>
                   <th className="px-4 py-3 w-56">Sector & Confidence</th>
                   <th className="px-4 py-3">Matched Message</th>
-                  <th className="px-4 py-3 w-12 text-center">Open</th>
+                  <th className="px-4 py-3 w-36 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -526,18 +528,31 @@ export const GlobalSearchPage: React.FC = () => {
                       </p>
                     </td>
 
-                    {/* Open channel link */}
-                    <td className="px-4 py-3 text-center align-top">
-                      <button
-                        title="Open message in channel"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(`/channel/${msg.channel_id}?highlight=${msg.id}`, '_blank');
-                        }}
-                        className="opacity-60 group-hover:opacity-100 transition p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
+                    {/* Actions: Evidence Proof & Direct Channel Open */}
+                    <td className="px-4 py-3 text-center align-top whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          title="View Forensic Evidence & Original Message Screenshot Proof"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEvidenceMessage(msg);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 transition shadow-2xs cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Evidence</span>
+                        </button>
+                        <button
+                          title="Open message in channel"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/channel/${msg.channel_id}?highlight=${msg.id}`, '_blank');
+                          }}
+                          className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -614,6 +629,15 @@ export const GlobalSearchPage: React.FC = () => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Forensic Evidence Modal Dialog */}
+      {selectedEvidenceMessage && (
+        <EvidenceModal
+          message={selectedEvidenceMessage}
+          searchKeyword={query}
+          onClose={() => setSelectedEvidenceMessage(null)}
+        />
       )}
     </div>
   );

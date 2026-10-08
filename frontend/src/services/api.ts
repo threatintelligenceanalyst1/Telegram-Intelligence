@@ -153,6 +153,16 @@ export const globalSearch = async (
   return res.data;
 };
 
+export const getMessageEvidence = async (messageId: string, keyword?: string): Promise<Message> => {
+  const res = await api.get(`/messages/${messageId}/evidence`, { params: { keyword } });
+  return res.data;
+};
+
+export const getEvidenceDownloadUrl = (messageId: string, keyword?: string): string => {
+  const base = api.defaults.baseURL || 'http://localhost:8000/api';
+  return `${base}/messages/${messageId}/evidence/download${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
+};
+
 export const getMessageCount = async (): Promise<{ total: number; total_on_disk: number; per_channel_on_disk: Record<string, number> }> => {
   const res = await api.get('/messages/count');
   return res.data;

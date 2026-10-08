@@ -246,6 +246,10 @@ app.include_router(intel_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 
+# Mount Static Evidence Directory for message screenshots
+from fastapi.staticfiles import StaticFiles
+app.mount("/evidence", StaticFiles(directory=str(settings.EVIDENCE_DIR)), name="evidence")
+
 @app.get("/api/notifications")
 async def get_notifications():
     """Retrieve running historical notifications list."""

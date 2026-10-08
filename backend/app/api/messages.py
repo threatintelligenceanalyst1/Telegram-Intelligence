@@ -387,9 +387,18 @@ async def global_search_messages(
         min_confidence=min_confidence
     )
 
+    # Pagination
     skip = (page - 1) * limit
     page_results = scored_results[skip : skip + limit]
     has_more = len(scored_results) > (skip + limit)
+
+    # Enrich paginated results with forensic proof and screenshot
+    from ..evidence.generator import EvidenceEngine
+    for r in page_results:
+        try:
+            EvidenceEngine.capture_message_evidence(r, keyword=q_clean)
+        except Exception:
+            pass
 
     return {
         "results": page_results,
@@ -398,6 +407,64 @@ async def global_search_messages(
         "sector_stats": sector_stats,
         "selected_sector": sector or "All Sectors"
     }
+
+
+@router.get("/{message_id}/evidence")
+async def get_message_evidence(message_id: str, keyword: Optional[str] = Query(None)):
+    """Retrieve full forensic evidence record and screenshot link for a message."""
+    from ..evidence.generator import EvidenceEngine
+    from ..db.mongodb import db, mongo_available
+    from fastapi import HTTPException
+    
+    msg = None
+    if mongo_available and db is not None:
+        msg = await db.messages.find_one({"id": message_id})
+        if msg:
+            msg.pop("_id", None)
+            
+    if not msg:
+        msg = store.messages.get(message_id)
+        
+    if not msg:
+        for m in store.messages.values():
+            if m.get("id") == message_id:
+                msg = m
+                break
+                
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+        
+    EvidenceEngine.capture_message_evidence(msg, keyword=keyword or "")
+    return msg
+
+
+@router.get("/{message_id}/evidence/download")
+async def download_message_evidence(message_id: str, keyword: Optional[str] = Query(None)):
+    """Download the high-resolution evidence screenshot PNG image for a message."""
+    from fastapi.responses import FileResponse
+    from ..evidence.generator import EvidenceEngine
+    from ..db.mongodb import db, mongo_available
+    from fastapi import HTTPException
+    
+    msg = None
+    if mongo_available and db is not None:
+        msg = await db.messages.find_one({"id": message_id})
+        if msg:
+            msg.pop("_id", None)
+            
+    if not msg:
+        msg = store.messages.get(message_id)
+        
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+        
+    img_path = EvidenceEngine.generate_evidence_screenshot(msg, keyword=keyword or "")
+    safe_name = re.sub(r"[^\w\-.]", "_", message_id)
+    return FileResponse(
+        path=str(img_path),
+        filename=f"evidence_{safe_name}.png",
+        media_type="image/png"
+    )
 
 
 def _load_messages_from_csv(channel_id: str, channel_title: str, target_date: Optional[str] = None) -> List[dict]:

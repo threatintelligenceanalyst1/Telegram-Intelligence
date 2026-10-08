@@ -43,6 +43,7 @@ class Settings:
     # DATA_DIR can be overridden by environment variable (used in Docker)
     DATA_DIR: Path = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
     REPORTS_DIR: Path = DATA_DIR / "reports"
+    EVIDENCE_DIR: Path = DATA_DIR / "evidence"
 
 settings = Settings()
 
@@ -53,3 +54,4 @@ settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 (settings.REPORTS_DIR / "pdf").mkdir(exist_ok=True)
 (settings.REPORTS_DIR / "combined").mkdir(exist_ok=True)
 (settings.DATA_DIR / "media").mkdir(parents=True, exist_ok=True)
+settings.EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)

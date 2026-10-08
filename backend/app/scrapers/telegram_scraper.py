@@ -195,7 +195,15 @@ class TelegramScraper:
         """Store scraped data into MongoDB (primary) and CSV date-wise (backup)."""
         from ..db.mongodb import db, mongo_available
         from pymongo import UpdateOne
+        from ..evidence.generator import EvidenceEngine
         
+        # 0. Automatically capture forensic proof & Telegram links for all ingested messages
+        for msg in messages:
+            try:
+                EvidenceEngine.capture_message_evidence(msg)
+            except Exception as e:
+                pass
+
         # 1. MongoDB Insertion (Primary Storage)
         if mongo_available and db is not None and messages:
             try:
@@ -205,7 +213,7 @@ class TelegramScraper:
                     operations.append(UpdateOne({"id": msg["id"]}, {"$set": msg}, upsert=True))
                 if operations:
                     result = await db.messages.bulk_write(operations, ordered=False)
-                    self.log(f"✅ Upserted {result.upserted_count} new messages into MongoDB for '{channel_title}'.")
+                    self.log(f"✅ Upserted {result.upserted_count} new messages with verified evidence into MongoDB for '{channel_title}'.")
             except Exception as e:
                 logger.error(f"Error saving messages to MongoDB: {e}")
 

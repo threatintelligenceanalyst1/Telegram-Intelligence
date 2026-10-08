@@ -47,6 +47,11 @@ export interface Message {
   matched_context_keywords?: string[];
   is_contextual_match?: boolean;
   relevance_reason?: string;
+  // Forensic Evidence Telemetry
+  evidence_screenshot_url?: string;
+  evidence_hash?: string;
+  evidence_captured_at?: string;
+  message_link?: string;
 }
 
 export interface ThreatIntelligence {
