@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Channel, Message, ThreatIntelligence, Report, ScraperStatus, IntelligenceSummary, TelegramUser, DailyStatsResponse, AutoMonitorStatus } from '../types';
+import { Channel, Message, ThreatIntelligence, Report, ScraperStatus, IntelligenceSummary, TelegramUser, DailyStatsResponse, AutoMonitorStatus, ApiKey } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -251,6 +251,34 @@ export const enableAllAutoMonitor = async (): Promise<{ status: string; channels
 
 export const setAutoMonitorInterval = async (intervalMinutes: number): Promise<AutoMonitorStatus> => {
   const res = await api.post(`/scraper/auto-monitor/interval?interval_minutes=${intervalMinutes}`);
+  return res.data;
+};
+
+// ==========================================
+// Customer / SIEM API Keys Management
+// ==========================================
+export const getApiKeys = async (): Promise<{ keys: ApiKey[]; total: number }> => {
+  const res = await api.get('/api-keys');
+  return res.data;
+};
+
+export const createApiKey = async (payload: {
+  client_name: string;
+  description?: string;
+  scopes?: string[];
+  rate_limit?: number;
+}): Promise<{ success: boolean; message: string; api_key: ApiKey }> => {
+  const res = await api.post('/api-keys', payload);
+  return res.data;
+};
+
+export const toggleApiKey = async (keyId: string): Promise<{ success: boolean; is_active: boolean; key: ApiKey }> => {
+  const res = await api.patch(`/api-keys/${keyId}/toggle`);
+  return res.data;
+};
+
+export const deleteApiKey = async (keyId: string): Promise<{ success: boolean; message: string }> => {
+  const res = await api.delete(`/api-keys/${keyId}`);
   return res.data;
 };
 

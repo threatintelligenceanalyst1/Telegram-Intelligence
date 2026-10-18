@@ -168,3 +168,17 @@ export interface DailyStatsResponse {
   daily_stats: DailyStatItem[];
 }
 
+export interface ApiKey {
+  id: string;
+  client_name: string;
+  description?: string;
+  key_masked: string;
+  key_prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  created_at: string;
+  last_used_at?: string | null;
+  total_requests: number;
+  rate_limit_per_minute: number;
+  raw_key?: string; // only present upon creation
+}

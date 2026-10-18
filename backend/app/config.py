@@ -37,6 +37,7 @@ class Settings:
     AUTO_MONITOR_24_7: bool = os.getenv("AUTO_MONITOR_24_7", "true").lower() in ("true", "1", "yes")
     AUTO_MONITOR_INTERVAL_MINUTES: int = int(os.getenv("AUTO_MONITOR_INTERVAL_MINUTES", "1440"))
     LIVE_LISTENER_ENABLED: bool = os.getenv("LIVE_LISTENER_ENABLED", "true").lower() in ("true", "1", "yes")
+    ENABLE_BACKGROUND_SCRAPER: bool = os.getenv("ENABLE_BACKGROUND_SCRAPER", "true").lower() in ("true", "1", "yes")
 
     # Storage Paths — BASE_DIR is the project root (darknet-monitor/)
     BASE_DIR: Path = Path(__file__).resolve().parents[2]

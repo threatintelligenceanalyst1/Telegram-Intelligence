@@ -1,0 +1,24 @@
+[Unit]
+Description=Darknet Threat Intelligence FastAPI Backend
+After=network.target mongodb.service
+
+[Service]
+Type=simple
+User=darknet_telegram
+Group=darknet_telegram
+WorkingDirectory=/var/www/darknet/backend
+Environment="PATH=/var/www/darknet/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="ENABLE_BACKGROUND_SCRAPER=false"
+ExecStart=/var/www/darknet/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+
+# Automatic restart on failure
+Restart=always
+RestartSec=3
+
+# Resource and security limits
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

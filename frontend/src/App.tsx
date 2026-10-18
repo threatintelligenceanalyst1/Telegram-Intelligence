@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChannelDetailPage } from './pages/ChannelDetailPage';
 import { GlobalSearchPage } from './pages/GlobalSearchPage';
+import { ApiKeysPage } from './pages/ApiKeysPage';
 import { getScraperStatus } from './services/api';
 
 export function App() {
@@ -43,8 +44,9 @@ export function App() {
                 <main className="flex-1 p-5 overflow-y-auto h-[calc(100vh-3.5rem)]">
                   <Routes>
                     <Route path="/" element={<DashboardPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/search" element={<GlobalSearchPage />} />
+                    <Route path="/api-keys" element={<ApiKeysPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                   </Routes>
                 </main>
               </div>

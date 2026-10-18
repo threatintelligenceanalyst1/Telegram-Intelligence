@@ -5,6 +5,7 @@ import { LayoutDashboard, Settings, Cpu, ShieldAlert, Key, Globe, Search } from 
 const navItems = [
   { path: '/', label: 'Overview Dashboard', icon: LayoutDashboard },
   { path: '/search', label: 'Global Search', icon: Search },
+  { path: '/api-keys', label: 'Customer API Keys', icon: Key },
   { path: '/settings', label: 'Settings & Telethon', icon: Settings },
 ];
 

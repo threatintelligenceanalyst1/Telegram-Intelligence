@@ -179,48 +179,51 @@ async def lifespan(app: FastAPI):
     # 3. Restore any already migrated title-based or existing ID folders in the background
     asyncio.create_task(_migrate_csv_messages_to_db())
 
-    # Auto-sync channels if user session is already saved
-    try:
-        auth_status = await telegram_scraper.check_auth_status()
-        if auth_status.get("is_authorized"):
-            user = auth_status.get("user", {})
-            username = user.get("username") or user.get("first_name") or "User"
-            logger.info(f"✓ Telegram session active — logged in as @{username}. Auto-syncing channels...")
-            channels = await telegram_scraper.sync_user_dialogs()
-            logger.info(f"✓ Auto-imported {len(channels)} real channels/groups from Telegram account.")
-            # Run migration of folders and reload to map them correctly
-            _migrate_numeric_folders_to_titles()
-            asyncio.create_task(_migrate_csv_messages_to_db())
-            
-            # Auto-enable 24/7 monitoring across all channels
-            if getattr(settings, "AUTO_MONITOR_24_7", True):
-                from .scrapers.scheduler import enable_all_channels_247
-                count = enable_all_channels_247()
-                logger.info(f"🟢 24/7 Autonomous Monitoring active across {count} channels.")
+    # Auto-sync channels if user session is already saved (if background scraping enabled in this process)
+    if settings.ENABLE_BACKGROUND_SCRAPER:
+        try:
+            auth_status = await telegram_scraper.check_auth_status()
+            if auth_status.get("is_authorized"):
+                user = auth_status.get("user", {})
+                username = user.get("username") or user.get("first_name") or "User"
+                logger.info(f"✓ Telegram session active — logged in as @{username}. Auto-syncing channels...")
+                channels = await telegram_scraper.sync_user_dialogs()
+                logger.info(f"✓ Auto-imported {len(channels)} real channels/groups from Telegram account.")
+                # Run migration of folders and reload to map them correctly
+                _migrate_numeric_folders_to_titles()
+                asyncio.create_task(_migrate_csv_messages_to_db())
+                
+                # Auto-enable 24/7 monitoring across all channels
+                if getattr(settings, "AUTO_MONITOR_24_7", True):
+                    from .scrapers.scheduler import enable_all_channels_247
+                    count = enable_all_channels_247()
+                    logger.info(f"🟢 24/7 Autonomous Monitoring active across {count} channels.")
 
-            # Start 24/7 real-time live event listener
-            if getattr(settings, "LIVE_LISTENER_ENABLED", True):
-                asyncio.create_task(telegram_scraper.start_live_listener())
-        else:
-            logger.info(f"No active Telegram session. Please authenticate via Settings page.")
-    except Exception as e:
-        logger.warning(f"Auto-sync skipped: {e}")
+                # Start 24/7 real-time live event listener
+                if getattr(settings, "LIVE_LISTENER_ENABLED", True):
+                    asyncio.create_task(telegram_scraper.start_live_listener())
+            else:
+                logger.info(f"No active Telegram session. Please authenticate via Settings page.")
+        except Exception as e:
+            logger.warning(f"Auto-sync skipped: {e}")
 
-
-    # Start the automated target channel scheduler in background!
-    asyncio.create_task(run_scheduler())
+        # Start the automated target channel scheduler in background!
+        asyncio.create_task(run_scheduler())
+    else:
+        logger.info("ℹ️ Dedicated Worker Mode: Telethon scraper/listener running in separate service.")
     
     yield
     
     # ON SHUTDOWN: Disconnect persistent Telethon client cleanly to release SQLite lock
-    try:
-        stop_scheduler()
-        if telegram_scraper.client:
-            logger.info("Shutting down: Disconnecting persistent Telethon client...")
-            await telegram_scraper.client.disconnect()
-            logger.info("✓ Telethon client disconnected cleanly.")
-    except Exception as e:
-        logger.warning(f"Error disconnecting Telethon client on shutdown: {e}")
+    if settings.ENABLE_BACKGROUND_SCRAPER:
+        try:
+            stop_scheduler()
+            if telegram_scraper.client:
+                logger.info("Shutting down: Disconnecting persistent Telethon client...")
+                await telegram_scraper.client.disconnect()
+                logger.info("✓ Telethon client disconnected cleanly.")
+        except Exception as e:
+            logger.warning(f"Error disconnecting Telethon client on shutdown: {e}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -238,6 +241,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from .api.api_keys import router as api_keys_router
+from .api.v1 import customer_v1_router
+
 # Include Routers
 app.include_router(channels_router, prefix="/api")
 app.include_router(scraper_router, prefix="/api")
@@ -245,6 +251,10 @@ app.include_router(messages_router, prefix="/api")
 app.include_router(intel_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(api_keys_router)
+app.include_router(api_keys_router, prefix="/api")
+app.include_router(customer_v1_router)
+app.include_router(customer_v1_router, prefix="/api")
 
 # Mount Static Evidence Directory for message screenshots
 from fastapi.staticfiles import StaticFiles

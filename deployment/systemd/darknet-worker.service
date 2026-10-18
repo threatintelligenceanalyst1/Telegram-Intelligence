@@ -1,0 +1,25 @@
+[Unit]
+Description=Darknet Threat Intelligence Telethon Ingestion Worker
+After=network.target mongodb.service
+Wants=mongodb.service
+
+[Service]
+Type=simple
+User=darknet_telegram
+Group=darknet_telegram
+WorkingDirectory=/var/www/darknet/backend
+Environment="PATH=/var/www/darknet/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="ENABLE_BACKGROUND_SCRAPER=true"
+ExecStart=/var/www/darknet/.venv/bin/python worker.py
+
+# Restart policy for 24/7 resilience
+Restart=always
+RestartSec=5
+
+# Logging and security limits
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
