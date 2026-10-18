@@ -1,9 +1,14 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from ..auth.api_keys import ApiKeyService
+from ..auth.admin_guard import verify_admin_access
 
-router = APIRouter(prefix="/api-keys", tags=["API Key Management"])
+router = APIRouter(
+    prefix="/api-keys",
+    tags=["API Key Management"],
+    dependencies=[Depends(verify_admin_access)]
+)
 
 
 class CreateApiKeyRequest(BaseModel):
