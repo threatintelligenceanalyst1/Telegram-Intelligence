@@ -50,6 +50,8 @@ Thumbs.db
 *.swp
 *.swo
 
-# Logs
+# Logs & Exports
 *.log
 logs/
+*.json.gz
+latest_100_darknet_messages.json

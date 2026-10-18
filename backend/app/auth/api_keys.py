@@ -2,6 +2,8 @@ import hashlib
 import secrets
 import uuid
 import logging
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from fastapi import Security, HTTPException, status, Header
@@ -10,6 +12,9 @@ from ..db import mongodb
 from ..db.mongodb import store
 
 logger = logging.getLogger("darknet_monitor.auth")
+
+# In-memory sliding window rate-limit tracker: { key_id: [timestamp, timestamp, ...] }
+_rate_limit_tracker: Dict[str, List[float]] = defaultdict(list)
 
 # Fallback store initialization
 if not hasattr(store, "api_keys"):
@@ -244,5 +249,28 @@ async def verify_customer_api_key(
                 "message": "The provided API key does not exist or has been disabled by the administrator."
             }
         )
+
+    # Active Rate Limiting Enforcement (Sliding 60-second window)
+    key_id = client_record.get("id")
+    rate_limit = int(client_record.get("rate_limit_per_minute", 120))
+    now = time.time()
+    window_start = now - 60.0
+
+    # Prune timestamps older than 60 seconds
+    timestamps = [t for t in _rate_limit_tracker[key_id] if t > window_start]
+    if len(timestamps) >= rate_limit:
+        retry_after = max(1, int(60 - (now - timestamps[0])))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "Rate Limit Exceeded",
+                "message": f"Rate limit of {rate_limit} requests/minute exceeded for this API key.",
+                "retry_after_seconds": retry_after
+            },
+            headers={"Retry-After": str(retry_after)}
+        )
+
+    timestamps.append(now)
+    _rate_limit_tracker[key_id] = timestamps
 
     return client_record
