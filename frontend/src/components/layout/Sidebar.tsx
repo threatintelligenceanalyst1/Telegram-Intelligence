@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Settings, Cpu, ShieldAlert, Key, Globe, Search } from 'lucide-react';
+import { LayoutDashboard, Settings, Key, Search } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'Overview Dashboard', icon: LayoutDashboard },
@@ -36,33 +36,14 @@ export const Sidebar: React.FC = () => {
         </nav>
       </div>
 
-      {/* LLM Engine status widget matching the screenshot */}
-      <div className="p-4 m-4 rounded-xl bg-darkBg border border-darkBorder space-y-3">
-        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+      {/* LLM Engine status indicator */}
+      <div className="p-3.5 m-4 rounded-xl bg-darkBg border border-darkBorder flex items-center justify-between">
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
           LLM Engine
-        </div>
+        </span>
         <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           Ready
-        </div>
-        
-        <div className="space-y-2 border-t border-darkBorder/60 pt-3 text-[11px] text-slate-600 font-medium">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-3.5 h-3.5 text-blue-500" />
-            IOC Extraction
-          </div>
-          <div className="flex items-center gap-2">
-            <Globe className="w-3.5 h-3.5 text-blue-500" />
-            URL Detection
-          </div>
-          <div className="flex items-center gap-2">
-            <Cpu className="w-3.5 h-3.5 text-blue-500" />
-            CVE Detection
-          </div>
-          <div className="flex items-center gap-2">
-            <Key className="w-3.5 h-3.5 text-blue-500" />
-            Wallet Detection
-          </div>
         </div>
       </div>
     </aside>
