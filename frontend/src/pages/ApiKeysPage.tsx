@@ -138,7 +138,7 @@ export const ApiKeysPage: React.FC = () => {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-between shadow-sm">
           <div>
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total API Keys</div>
@@ -169,17 +169,6 @@ export const ApiKeysPage: React.FC = () => {
           </div>
           <div className="p-3 rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
             <Activity className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-between shadow-sm">
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Supported Protocols</div>
-            <div className="text-base font-bold text-slate-900 mt-1">REST / JSON / STIX</div>
-            <div className="text-[11px] font-semibold text-blue-600 mt-0.5">Splunk • Sentinel • MISP</div>
-          </div>
-          <div className="p-3 rounded-xl bg-amber-50 text-amber-600 border border-amber-100">
-            <Layers className="w-5 h-5" />
           </div>
         </div>
       </div>
