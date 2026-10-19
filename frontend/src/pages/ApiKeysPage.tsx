@@ -64,7 +64,7 @@ export const ApiKeysPage: React.FC = () => {
       const res = await createApiKey({
         client_name: clientName.trim(),
         description: description.trim(),
-        rate_limit: rateLimit,
+        rate_limit: Number(rateLimit) || 120,
         scopes: ['read:all']
       });
 
@@ -120,20 +120,20 @@ export const ApiKeysPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-darkBorder pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 shadow-sm">
+            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 shadow-sm">
               <Key className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <h1 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
                 Customer & SIEM API Keys
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800">
                   100% Free & Unlimited
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs font-medium text-slate-600 mt-0.5">
                 Generate cryptographically secure API keys to integrate Telegram Darknet Threat Intelligence into customer SOCs, SIEMs, and external scripts.
               </p>
             </div>
@@ -143,14 +143,14 @@ export const ApiKeysPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={fetchKeys}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-darkCard border border-darkBorder text-slate-300 hover:text-slate-100 hover:bg-slate-800 transition"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition"
           >
             <Plus className="w-4 h-4" />
             Generate Customer Key
@@ -160,81 +160,81 @@ export const ApiKeysPage: React.FC = () => {
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-darkCard border border-darkBorder flex items-center justify-between shadow-sm">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total API Keys</div>
-            <div className="text-2xl font-black text-slate-100 mt-1">{keys.length}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Registered clients</div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total API Keys</div>
+            <div className="text-2xl font-black text-slate-900 mt-1">{keys.length}</div>
+            <div className="text-[11px] font-medium text-slate-500 mt-0.5">Registered clients</div>
           </div>
-          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
+          <div className="p-3 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
             <Key className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-darkCard border border-darkBorder flex items-center justify-between shadow-sm">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Keys</div>
-            <div className="text-2xl font-black text-emerald-400 mt-1">{activeKeysCount}</div>
-            <div className="text-[11px] text-emerald-500/80 mt-0.5">Authorized for /api/v1</div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Active Keys</div>
+            <div className="text-2xl font-black text-emerald-600 mt-1">{activeKeysCount}</div>
+            <div className="text-[11px] font-medium text-emerald-700 mt-0.5">Authorized for /api/v1</div>
           </div>
-          <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
+          <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
             <Shield className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-darkCard border border-darkBorder flex items-center justify-between shadow-sm">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Ingestions</div>
-            <div className="text-2xl font-black text-purple-400 mt-1">{totalRequests.toLocaleString()}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">External API requests served</div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Ingestions</div>
+            <div className="text-2xl font-black text-purple-700 mt-1">{totalRequests.toLocaleString()}</div>
+            <div className="text-[11px] font-medium text-slate-500 mt-0.5">External API requests served</div>
           </div>
-          <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400">
+          <div className="p-3 rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
             <Activity className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-darkCard border border-darkBorder flex items-center justify-between shadow-sm">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Supported Protocols</div>
-            <div className="text-base font-bold text-slate-200 mt-1">REST / JSON / STIX</div>
-            <div className="text-[11px] text-blue-400 mt-0.5">Splunk • Sentinel • MISP</div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Supported Protocols</div>
+            <div className="text-base font-bold text-slate-900 mt-1">REST / JSON / STIX</div>
+            <div className="text-[11px] font-semibold text-blue-600 mt-0.5">Splunk • Sentinel • MISP</div>
           </div>
-          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
+          <div className="p-3 rounded-xl bg-amber-50 text-amber-600 border border-amber-100">
             <Layers className="w-5 h-5" />
           </div>
         </div>
       </div>
 
       {/* Main Keys Table */}
-      <div className="bg-darkCard border border-darkBorder rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-darkBorder flex items-center justify-between">
+      <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-blue-400" />
-            <h2 className="text-sm font-bold text-slate-200">Customer Access Tokens</h2>
+            <Lock className="w-4 h-4 text-blue-600" />
+            <h2 className="text-sm font-bold text-slate-900">Customer Access Tokens</h2>
           </div>
-          <div className="text-xs text-slate-400 font-medium">
-            Header: <code className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-400 font-mono text-[11px]">X-API-Key: dnet_live_...</code>
+          <div className="text-xs text-slate-600 font-medium flex items-center gap-1.5">
+            Header: <code className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-blue-700 font-mono text-[11px] font-semibold">X-API-Key: dnet_live_...</code>
           </div>
         </div>
 
         {error && (
-          <div className="p-4 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div className="p-4 bg-red-50 border-b border-red-200 text-red-700 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+            <span className="font-semibold">{error}</span>
           </div>
         )}
 
         {loading ? (
-          <div className="py-16 text-center text-slate-400 text-xs">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-500 mb-2" />
+          <div className="py-16 text-center text-slate-600 text-xs">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
             Loading API keys...
           </div>
         ) : keys.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 space-y-3">
-            <div className="p-3 rounded-full bg-slate-800/60 w-fit mx-auto text-slate-500">
+          <div className="py-16 text-center text-slate-600 space-y-3">
+            <div className="p-3 rounded-full bg-slate-100 w-fit mx-auto text-slate-400">
               <Key className="w-6 h-6" />
             </div>
-            <div className="text-sm font-semibold text-slate-300">No Customer API Keys Generated Yet</div>
+            <div className="text-sm font-bold text-slate-800">No Customer API Keys Generated Yet</div>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               Create an API key to allow external SOC platforms, SIEM tools, or customer scripts to pull darknet threat alerts and IOC feeds.
             </p>
@@ -250,7 +250,7 @@ export const ApiKeysPage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-darkBorder bg-slate-800/20 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-4">Client / Integration</th>
                   <th className="py-3 px-4">Key Token</th>
                   <th className="py-3 px-4">Status</th>
@@ -259,11 +259,11 @@ export const ApiKeysPage: React.FC = () => {
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-darkBorder text-xs text-slate-300 font-medium">
+              <tbody className="divide-y divide-slate-100 text-xs font-medium">
                 {keys.map((k) => (
-                  <tr key={k.id} className="hover:bg-slate-800/30 transition">
+                  <tr key={k.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-100 flex items-center gap-2">
+                      <div className="font-bold text-slate-900 flex items-center gap-2">
                         {k.client_name}
                       </div>
                       {k.description && (
@@ -274,16 +274,16 @@ export const ApiKeysPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 font-mono">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 rounded bg-slate-800/80 border border-darkBorder text-blue-400 text-[11px]">
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-blue-700 font-semibold text-[11px]">
                           {k.key_masked}
                         </span>
                         <button
                           onClick={() => copyToClipboard(k.key_masked, k.id)}
                           title="Copy masked token identifier"
-                          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition"
                         >
                           {copiedKeyId === k.id ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
                           ) : (
                             <Copy className="w-3.5 h-3.5" />
                           )}
@@ -292,28 +292,28 @@ export const ApiKeysPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4">
                       {k.is_active ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 border border-emerald-200 text-emerald-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/10 border border-red-500/20 text-red-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 border border-red-200 text-red-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                           Revoked
                         </span>
                       )}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="text-slate-200 font-bold">
+                      <div className="text-slate-900 font-bold">
                         {(k.total_requests || 0).toLocaleString()} calls
                       </div>
                       <div className="text-[11px] text-slate-500">
                         {k.last_used_at
-                          ? `Last: ${new Date(k.last_used_at).toLocaleDateString()} ${new Date(k.last_used_at).toLocaleTimeString()}`
+                          ? `Last: ${new Date(k.last_used_at).toLocaleDateString()} ${new Date(k.last_used_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                           : 'Never used'}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                    <td className="py-3.5 px-4 text-slate-600 text-[11px] font-medium">
                       {new Date(k.created_at).toLocaleDateString()}
                     </td>
                     <td className="py-3.5 px-4 text-right">
@@ -323,8 +323,8 @@ export const ApiKeysPage: React.FC = () => {
                           title={k.is_active ? 'Disable Key' : 'Enable Key'}
                           className={`p-1.5 rounded-lg border transition ${
                             k.is_active
-                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
-                              : 'bg-slate-800 border-darkBorder text-slate-400 hover:text-slate-200'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                              : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                           }`}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -332,7 +332,7 @@ export const ApiKeysPage: React.FC = () => {
                         <button
                           onClick={() => handleDelete(k.id, k.client_name)}
                           title="Revoke & Delete Key"
-                          className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition"
+                          className="p-1.5 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -347,17 +347,17 @@ export const ApiKeysPage: React.FC = () => {
       </div>
 
       {/* Developer Integration Quickstart */}
-      <div className="bg-darkCard border border-darkBorder rounded-2xl p-5 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between border-b border-darkBorder pb-3">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-slate-200">Customer Integration Guide (/api/v1)</h3>
+            <Terminal className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900">Customer Integration Guide (/api/v1)</h3>
           </div>
-          <div className="flex gap-1.5 p-1 rounded-xl bg-slate-900 border border-darkBorder text-xs font-semibold">
+          <div className="flex gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold">
             <button
               onClick={() => setDocTab('curl')}
               className={`px-3 py-1 rounded-lg transition ${
-                docTab === 'curl' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                docTab === 'curl' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               cURL
@@ -365,7 +365,7 @@ export const ApiKeysPage: React.FC = () => {
             <button
               onClick={() => setDocTab('python')}
               className={`px-3 py-1 rounded-lg transition ${
-                docTab === 'python' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                docTab === 'python' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Python
@@ -373,7 +373,7 @@ export const ApiKeysPage: React.FC = () => {
             <button
               onClick={() => setDocTab('siem')}
               className={`px-3 py-1 rounded-lg transition ${
-                docTab === 'siem' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                docTab === 'siem' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Splunk / SIEM
@@ -384,37 +384,28 @@ export const ApiKeysPage: React.FC = () => {
         {docTab === 'curl' && (
           <div className="space-y-3 text-xs font-mono">
             <div>
-              <div className="text-slate-400 font-sans text-[11px] mb-1 font-semibold">
+              <div className="text-slate-700 font-sans text-xs mb-1.5 font-bold">
                 1. Stream Critical/High Threat Feed (JSON):
               </div>
-              <div className="p-3 rounded-xl bg-slate-950 border border-darkBorder text-slate-300 overflow-x-auto select-all">
-                curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/api/v1/threats?min_level=HIGH&limit=50"
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 overflow-x-auto select-all shadow-inner font-mono text-xs">
+                curl -H "X-API-Key: YOUR_API_KEY" "https://set-represents-suggested-leader.trycloudflare.com/api/v1/threats?min_level=HIGH&limit=50"
               </div>
             </div>
 
             <div>
-              <div className="text-slate-400 font-sans text-[11px] mb-1 font-semibold">
+              <div className="text-slate-700 font-sans text-xs mb-1.5 font-bold">
                 2. Export Malicious IOCs Blocklist (IPs, Domains, CVEs, Wallets):
               </div>
-              <div className="p-3 rounded-xl bg-slate-950 border border-darkBorder text-slate-300 overflow-x-auto select-all">
-                curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/api/v1/iocs?ioc_type=all&limit=100"
-              </div>
-            </div>
-
-            <div>
-              <div className="text-slate-400 font-sans text-[11px] mb-1 font-semibold">
-                3. Verify Cryptographic Proof & Download Screenshot for a Message:
-              </div>
-              <div className="p-3 rounded-xl bg-slate-950 border border-darkBorder text-slate-300 overflow-x-auto select-all">
-                curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/api/v1/evidence/msg_-1001323386230_258089"
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 overflow-x-auto select-all shadow-inner font-mono text-xs">
+                curl -H "X-API-Key: YOUR_API_KEY" "https://set-represents-suggested-leader.trycloudflare.com/api/v1/iocs?ioc_type=all&limit=100"
               </div>
             </div>
           </div>
         )}
 
         {docTab === 'python' && (
-          <div className="text-xs font-mono p-4 rounded-xl bg-slate-950 border border-darkBorder text-slate-300 overflow-x-auto space-y-1">
-            <span className="text-slate-500"># Python Ingestion Client Example</span>
+          <div className="text-xs font-mono p-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 overflow-x-auto space-y-1 shadow-inner">
+            <span className="text-slate-400"># Python Ingestion Client Example</span>
             <br />
             <span className="text-blue-400">import</span> requests
             <br />
@@ -424,11 +415,11 @@ export const ApiKeysPage: React.FC = () => {
             HEADERS = &#123;<span className="text-emerald-400">"X-API-Key"</span>: API_KEY&#125;
             <br />
             <br />
-            <span className="text-slate-500"># Fetch Latest Threat Alerts</span>
+            <span className="text-slate-400"># Fetch Latest Threat Alerts</span>
             <br />
             response = requests.get(
             <br />
-            &nbsp;&nbsp;<span className="text-emerald-400">"http://localhost:8000/api/v1/threats?min_level=CRITICAL"</span>,
+            &nbsp;&nbsp;<span className="text-emerald-400">"https://set-represents-suggested-leader.trycloudflare.com/api/v1/threats?min_level=CRITICAL"</span>,
             <br />
             &nbsp;&nbsp;headers=HEADERS
             <br />
@@ -438,19 +429,19 @@ export const ApiKeysPage: React.FC = () => {
             <br />
             <span className="text-purple-400">for</span> t <span className="text-purple-400">in</span> threats:
             <br />
-            &nbsp;&nbsp;<span className="text-blue-400">print</span>(f<span className="text-emerald-400">"[&#123;t['threat_level']&#125;] &#123;t['channel_title']&#125; - Hash: &#123;t['evidence']['hash_sha256']&#125;"</span>)
+            &nbsp;&nbsp;<span className="text-blue-400">print</span>(f<span className="text-emerald-400">"[&#123;t['threat_level']&#125;] &#123;t['channel_username']&#125; - &#123;t['text'][:60]&#125;..."</span>)
           </div>
         )}
 
         {docTab === 'siem' && (
-          <div className="text-xs text-slate-300 space-y-2 leading-relaxed">
-            <p>
+          <div className="text-xs text-slate-700 space-y-2 leading-relaxed">
+            <p className="font-medium">
               External SIEMs (Splunk HEC, Elastic Agent, Microsoft Sentinel, or Cortex XSOAR) can ingest this feed directly using standard HTTP polling or Webhooks:
             </p>
-            <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
-              <li><strong>Authentication:</strong> Pass the custom HTTP header <code className="text-blue-400 font-mono">X-API-Key</code> or <code className="text-blue-400 font-mono">Authorization: Bearer &lt;key&gt;</code>.</li>
-              <li><strong>Format:</strong> Clean, structured JSON with extracted IOCs (IPs, hashes, CVEs) ready to map to Splunk CIM or Elastic ECS threat fields.</li>
-              <li><strong>Evidence Integrity:</strong> Every threat record contains a canonical Telegram web deep link and a tamper-evident SHA-256 fingerprint for forensic court admissibility.</li>
+            <ul className="list-disc list-inside space-y-1 text-slate-600 text-xs">
+              <li><strong className="text-slate-800">Authentication:</strong> Pass the custom HTTP header <code className="text-blue-600 font-mono font-semibold">X-API-Key</code> or <code className="text-blue-600 font-mono font-semibold">Authorization: Bearer &lt;key&gt;</code>.</li>
+              <li><strong className="text-slate-800">Format:</strong> Clean, structured JSON with extracted IOCs (IPs, hashes, CVEs) ready to map to Splunk CIM or Elastic ECS threat fields.</li>
+              <li><strong className="text-slate-800">Evidence Integrity:</strong> Every threat record contains a canonical Telegram web deep link and a tamper-evident SHA-256 fingerprint for forensic court admissibility.</li>
             </ul>
           </div>
         )}
@@ -458,16 +449,16 @@ export const ApiKeysPage: React.FC = () => {
 
       {/* Modal 1: Generate Key */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-          <div className="bg-darkCard border border-darkBorder rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-darkBorder pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <Key className="w-5 h-5 text-blue-500" />
-                <h3 className="text-base font-bold text-slate-100">Generate Customer API Key</h3>
+                <Key className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base font-bold text-slate-900">Generate Customer API Key</h3>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-200 text-sm font-bold"
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
               >
                 ✕
               </button>
@@ -475,8 +466,8 @@ export const ApiKeysPage: React.FC = () => {
 
             <form onSubmit={handleCreateKey} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Customer / Tool Name <span className="text-red-400">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Customer / Tool Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -484,12 +475,12 @@ export const ApiKeysPage: React.FC = () => {
                   placeholder="e.g. Bank SOC Ingestion, Client Splunk..."
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-darkBorder text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-blue-500 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Description / Integration Notes
                 </label>
                 <input
@@ -497,12 +488,12 @@ export const ApiKeysPage: React.FC = () => {
                   placeholder="e.g. Automated threat feed polling every 15 minutes"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-darkBorder text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-blue-500 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Rate Limit (Requests per minute)
                 </label>
                 <input
@@ -511,16 +502,16 @@ export const ApiKeysPage: React.FC = () => {
                   max={1000}
                   value={rateLimit}
                   onChange={(e) => setRateLimit(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-darkBorder text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-blue-500 font-medium"
                 />
                 <div className="text-[10px] text-slate-500 mt-1">Default: 120 req/min</div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-darkBorder">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
                 >
                   Cancel
                 </button>
@@ -539,30 +530,30 @@ export const ApiKeysPage: React.FC = () => {
 
       {/* Modal 2: Newly Generated Secret Key Reveal */}
       {createdKeyData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-darkCard border border-emerald-500/30 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white border border-emerald-300 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <div className="p-3 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
                 <Shield className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-100">API Key Successfully Created</h3>
-                <p className="text-xs text-slate-400">For client: <strong className="text-slate-200">{createdKeyData.client_name}</strong></p>
+                <h3 className="text-base font-extrabold text-slate-900">API Key Successfully Created</h3>
+                <p className="text-xs text-slate-600">For client: <strong className="text-slate-900">{createdKeyData.client_name}</strong></p>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
               <div>
                 <strong>Important:</strong> Copy and store this secret key now. For your security, this key <u>will not be shown again</u>.
               </div>
             </div>
 
             <div>
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Full Secret API Token
               </div>
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-950 border border-darkBorder font-mono text-xs text-emerald-400 break-all select-all">
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-emerald-400 break-all select-all shadow-inner">
                 <span className="flex-1">{createdKeyData.raw_key}</span>
                 <button
                   onClick={() => copyToClipboard(createdKeyData.raw_key || '', 'modal')}
@@ -586,7 +577,7 @@ export const ApiKeysPage: React.FC = () => {
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setCreatedKeyData(null)}
-                className="px-6 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                className="px-6 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition shadow-sm"
               >
                 I have safely stored this key
               </button>
