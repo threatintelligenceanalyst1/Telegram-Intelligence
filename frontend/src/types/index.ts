@@ -182,3 +182,52 @@ export interface ApiKey {
   rate_limit_per_minute: number;
   raw_key?: string; // only present upon creation
 }
+
+export interface EvidenceCustodyEvent {
+  action: string;
+  timestamp: string;
+  actor: string;
+  details?: Record<string, any>;
+  sha256?: string;
+}
+
+export interface EvidenceRecord {
+  message_id: string;
+  capture_status: 'captured' | 'pending' | 'failed';
+  failure_reason?: string | null;
+  embed_url?: string | null;
+  channel_username?: string | null;
+  raw_message_id?: string | null;
+  screenshot_filename?: string | null;
+  screenshot_sha256?: string | null;
+  message_sha256: string;
+  manifest_sha256?: string | null;
+  screenshot_size_bytes?: number | null;
+  captured_at?: string | null;
+  screenshot_url?: string;
+  bundle_url?: string;
+  chain_of_custody?: EvidenceCustodyEvent[];
+}
+
+export interface EvidenceVerification {
+  message_id: string;
+  verified: boolean;
+  message_hash_match: boolean;
+  screenshot_hash_match: boolean;
+  manifest_hash_match: boolean;
+  chain_valid: boolean;
+  stored_hashes: {
+    message_sha256?: string | null;
+    screenshot_sha256?: string | null;
+    manifest_sha256?: string | null;
+  };
+  recomputed_hashes: {
+    message_sha256?: string | null;
+    screenshot_sha256?: string | null;
+    manifest_sha256?: string | null;
+  };
+  verified_at: string;
+  status: 'passed' | 'tampered' | 'incomplete' | 'not_captured';
+  details?: string;
+}
+

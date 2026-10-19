@@ -1,5 +1,7 @@
 import axios from 'axios';
-import { Channel, Message, ThreatIntelligence, Report, ScraperStatus, IntelligenceSummary, TelegramUser, DailyStatsResponse, AutoMonitorStatus, ApiKey } from '../types';
+import { Channel, Message, ThreatIntelligence, Report, ScraperStatus, IntelligenceSummary, TelegramUser, DailyStatsResponse, AutoMonitorStatus, ApiKey, EvidenceRecord, EvidenceVerification } from '../types';
+
+
 
 const api = axios.create({
   baseURL: '/api',
@@ -162,6 +164,32 @@ export const getEvidenceDownloadUrl = (messageId: string, keyword?: string): str
   const base = api.defaults.baseURL || 'http://localhost:8000/api';
   return `${base}/messages/${messageId}/evidence/download${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
 };
+
+export const getEvidenceRecord = async (messageId: string): Promise<EvidenceRecord> => {
+  const res = await api.get(`/v1/threats/${messageId}/evidence`);
+  return res.data.evidence;
+};
+
+export const verifyEvidence = async (messageId: string): Promise<EvidenceVerification> => {
+  const res = await api.get(`/v1/threats/${messageId}/evidence/verify`);
+  return res.data.verification;
+};
+
+export const recaptureEvidence = async (messageId: string): Promise<EvidenceRecord> => {
+  const res = await api.post(`/v1/threats/${messageId}/evidence/recapture`);
+  return res.data.evidence;
+};
+
+export const getEvidenceScreenshotUrl = (messageId: string): string => {
+  const base = api.defaults.baseURL || '/api';
+  return `${base}/v1/threats/${messageId}/evidence/screenshot`;
+};
+
+export const getEvidenceBundleUrl = (messageId: string): string => {
+  const base = api.defaults.baseURL || '/api';
+  return `${base}/v1/threats/${messageId}/evidence/bundle`;
+};
+
 
 export const getMessageCount = async (): Promise<{ total: number; total_on_disk: number; per_channel_on_disk: Record<string, number> }> => {
   const res = await api.get('/messages/count');

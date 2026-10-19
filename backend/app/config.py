@@ -46,6 +46,13 @@ class Settings:
     REPORTS_DIR: Path = DATA_DIR / "reports"
     EVIDENCE_DIR: Path = DATA_DIR / "evidence"
 
+    # Evidence Capture & Forensic Verification Settings
+    EVIDENCE_CAPTURE_ENABLED: bool = os.getenv("EVIDENCE_CAPTURE_ENABLED", "true").lower() in ("true", "1", "yes")
+    EVIDENCE_CAPTURE_RATE_LIMIT_SEC: float = float(os.getenv("EVIDENCE_CAPTURE_RATE_LIMIT_SEC", "3.0"))
+    EVIDENCE_CAPTURE_TIMEOUT_MS: int = int(os.getenv("EVIDENCE_CAPTURE_TIMEOUT_MS", "15000"))
+    EVIDENCE_CAPTURE_MAX_RETRIES: int = int(os.getenv("EVIDENCE_CAPTURE_MAX_RETRIES", "2"))
+    EVIDENCE_BROWSER_HEADLESS: bool = os.getenv("EVIDENCE_BROWSER_HEADLESS", "true").lower() in ("true", "1", "yes")
+
 settings = Settings()
 
 # Ensure directories exist

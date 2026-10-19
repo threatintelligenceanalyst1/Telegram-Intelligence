@@ -43,6 +43,20 @@ class TelegramScraper:
         self.live_listener_active: bool = False
         self._listener_attached: bool = False
 
+    @staticmethod
+    def _write_messages_to_csv(channel_id: str, messages: list):
+        """Helper to serialize messages to CSV inside channel directory with auto directory creation."""
+        import csv
+        ch_dir = settings.DATA_DIR / channel_id / "chats"
+        ch_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = ch_dir / "messages_resilience_test.csv"
+        with open(csv_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["id", "date", "sender", "text"])
+            for m in messages:
+                writer.writerow([m.get("id"), m.get("date"), m.get("sender"), m.get("text")])
+
+
     def stop(self):
         """Request a graceful stop of the current scraping job."""
         if self.is_scraping:
@@ -403,6 +417,14 @@ class TelegramScraper:
                     self.log(f"🚨 [24/7 LIVE ALERT] {threat_lvl} threat in '{ch_title}' from {sender_desc}!")
                 else:
                     store.add_notification("message", f"📩 [24/7 Live] New post in '{ch_title}' from {sender_desc}")
+
+                # Automatically trigger real Playwright evidence capture in background queue for flagged messages
+                if threat_lvl in ["CRITICAL", "HIGH", "MEDIUM"]:
+                    try:
+                        from ..evidence.capture_service import enqueue_evidence_capture
+                        enqueue_evidence_capture(msg_data, actor="live_listener")
+                    except Exception as ev_err:
+                        logger.warning(f"Failed to enqueue evidence capture: {ev_err}")
 
             except Exception as e:
                 logger.error(f"Error handling live Telegram message: {e}")

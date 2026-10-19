@@ -274,3 +274,37 @@ async def verify_customer_api_key(
     _rate_limit_tracker[key_id] = timestamps
 
     return client_record
+
+
+async def verify_customer_or_internal_access(
+    header_key: Optional[str] = Security(api_key_header),
+    query_key: Optional[str] = Security(api_key_query),
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    FastAPI security dependency that authenticates customer API keys if provided,
+    or permits local/dashboard requests if accessed without API keys.
+    """
+    key_candidate = header_key or query_key
+    if not key_candidate and authorization:
+        parts = authorization.strip().split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            key_candidate = parts[1]
+        elif len(parts) == 1 and parts[0].startswith("dnet_live_"):
+            key_candidate = parts[0]
+
+    if key_candidate:
+        return await verify_customer_api_key(
+            header_key=header_key,
+            query_key=query_key,
+            authorization=authorization
+        )
+
+    # Permit internal/dashboard frontend calls without API key
+    return {
+        "id": "internal_console",
+        "client_name": "Internal CTI Console",
+        "tier": "internal",
+        "is_active": True
+    }
+

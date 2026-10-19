@@ -1,15 +1,20 @@
 import re
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Query, HTTPException, status
-from app.auth.api_keys import verify_customer_api_key
+from fastapi.responses import FileResponse
+from app.auth.api_keys import verify_customer_api_key, verify_customer_or_internal_access
+from app.auth.admin_guard import verify_admin_access
 from app.db import mongodb
 from app.db.mongodb import store
 from app.evidence.generator import EvidenceEngine
+from app.evidence.capture_service import EvidenceCaptureService
 from app.llm.regex_extractors import extract_indicators_with_regex
 
 router = APIRouter(prefix="/v1", tags=["Customer Integration API (v1)"])
+
 
 
 @router.get("/threats", summary="Feed of high-priority Darknet threat alerts")
@@ -93,7 +98,7 @@ async def get_threat_feed(
             "channel_id": t.get("channel_id"),
             "threat_level": t.get("threat_level", "LOW"),
             "detected_sector": t.get("detected_sector") or "General Cyber Threat",
-            "confidence_score": t.get("confidence_score") or 85,
+            "confidence_score": t.get("confidence_score"),
             "date": t.get("date"),
             "text": t.get("text", ""),
             "iocs": t.get("iocs", []),
@@ -354,32 +359,179 @@ async def get_iocs_feed(
     }
 
 
-@router.get("/evidence/{message_id}", summary="Cryptographic evidence verification record")
-async def get_message_evidence_record(
-    message_id: str,
-    client: Dict[str, Any] = Depends(verify_customer_api_key)
-):
-    """
-    Verify the chain of custody and retrieve cryptographic proof for an intercepted message.
-    """
+async def _get_message_by_id(message_id: str) -> Optional[dict]:
+    """Helper to locate message by id across MongoDB and in-memory store."""
     msg = None
     if mongodb.mongo_available and mongodb.db is not None:
         try:
             msg = await mongodb.db.messages.find_one({"id": message_id})
             if msg:
                 msg.pop("_id", None)
+                return msg
         except Exception:
             pass
-
     if not msg:
         msg = store.messages.get(message_id)
-
     if not msg:
         for m in store.messages.values():
             if m.get("id") == message_id:
-                msg = m
-                break
+                return m
+    return msg
 
+
+@router.get("/threats/{message_id}/evidence", summary="Cryptographic evidence record & capture status")
+async def get_threat_evidence(
+    message_id: str,
+    client: Dict[str, Any] = Depends(verify_customer_or_internal_access)
+):
+    """
+    Retrieve authentic Playwright capture status, SHA-256 hashes (screenshot & canonical JSON),
+    manifest signature, and chain-of-custody audit log.
+    """
+    record = await EvidenceCaptureService.get_evidence_record(message_id)
+    if not record:
+        msg = await _get_message_by_id(message_id)
+        if not msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Threat message '{message_id}' not found."
+            )
+        # Trigger immediate capture for un-captured message
+        record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True)
+
+    return {
+        "status": "success",
+        "client": client.get("client_name"),
+        "evidence": record
+    }
+
+
+@router.get("/threats/{message_id}/evidence/screenshot", summary="Download genuine Telegram screenshot PNG")
+async def get_threat_evidence_screenshot(
+    message_id: str,
+    client: Dict[str, Any] = Depends(verify_customer_or_internal_access)
+):
+    """
+    Serve the genuine Playwright headless Chromium screenshot of the Telegram embed view.
+    Falls back gracefully to analyst preview if capture failed or is unavailable.
+    """
+    record = await EvidenceCaptureService.get_evidence_record(message_id)
+    if not record or not record.get("screenshot_path"):
+        msg = await _get_message_by_id(message_id)
+        if not msg:
+            raise HTTPException(status_code=404, detail="Threat message not found.")
+        record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True)
+
+    screenshot_path = record.get("screenshot_path") if record else None
+    if screenshot_path and Path(screenshot_path).exists():
+        return FileResponse(
+            path=str(screenshot_path),
+            media_type="image/png",
+            filename=f"telegram_evidence_{message_id}.png"
+        )
+
+    # Fallback to analyst preview generator
+    msg = await _get_message_by_id(message_id)
+    if msg:
+        fallback_path = EvidenceEngine.generate_evidence_screenshot(msg)
+        if fallback_path and Path(fallback_path).exists():
+            return FileResponse(
+                path=str(fallback_path),
+                media_type="image/png",
+                filename=f"evidence_analyst_{message_id}.png"
+            )
+
+    raise HTTPException(status_code=404, detail="Screenshot evidence not available.")
+
+
+@router.post("/threats/{message_id}/evidence/recapture", summary="Force re-capture evidence screenshot (Admin Only)")
+async def recapture_threat_evidence(
+    message_id: str,
+    admin: Any = Depends(verify_admin_access)
+):
+    """
+    Administrative endpoint to force immediate re-capture of the Telegram embed view
+    using headless Chromium. Updates hashes, disk assets, and adds to custody audit log.
+    """
+    msg = await _get_message_by_id(message_id)
+    if not msg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Threat message '{message_id}' not found."
+        )
+
+    record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True)
+    return {
+        "status": "success",
+        "message": "Evidence re-captured successfully.",
+        "evidence": record
+    }
+
+
+@router.get("/threats/{message_id}/evidence/verify", summary="Verify cryptographic integrity of evidence")
+async def verify_threat_evidence_integrity(
+    message_id: str,
+    client: Dict[str, Any] = Depends(verify_customer_or_internal_access)
+):
+    """
+    Recompute SHA-256 digests of the message JSON and screenshot PNG on disk.
+    Verifies match/mismatch against the immutable evidence record manifest and custody log.
+    """
+    verification = await EvidenceCaptureService.verify_evidence(message_id)
+    return {
+        "status": "success",
+        "client": client.get("client_name"),
+        "verification": verification
+    }
+
+
+@router.get("/threats/{message_id}/evidence/bundle", summary="Download complete forensic evidence package (ZIP)")
+async def download_threat_evidence_bundle(
+    message_id: str,
+    client: Dict[str, Any] = Depends(verify_customer_or_internal_access)
+):
+    """
+    Download a self-contained, authenticated forensic ZIP bundle containing:
+    1. screenshot.png (if captured)
+    2. message.json (canonical raw message data)
+    3. manifest.json (SHA-256 digests and metadata)
+    4. README.txt (instructions for independent verification)
+    """
+    from fastapi import Response
+    zip_bytes, filename = await EvidenceCaptureService.generate_evidence_bundle(message_id)
+    if not zip_bytes:
+        msg = await _get_message_by_id(message_id)
+        if not msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Threat message '{message_id}' not found."
+            )
+        await EvidenceCaptureService.create_evidence_record(msg)
+        zip_bytes, filename = await EvidenceCaptureService.generate_evidence_bundle(message_id)
+
+    if not zip_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not generate forensic evidence bundle for '{message_id}'."
+        )
+
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+
+@router.get("/evidence/{message_id}", summary="Cryptographic evidence verification record (Legacy compatibility)")
+async def get_message_evidence_record(
+    message_id: str,
+    client: Dict[str, Any] = Depends(verify_customer_or_internal_access)
+):
+    """
+    Verify the chain of custody and retrieve cryptographic proof for an intercepted message.
+    """
+    msg = await _get_message_by_id(message_id)
     if not msg:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -388,6 +540,7 @@ async def get_message_evidence_record(
 
     # Compute & verify evidence proof
     evidence = EvidenceEngine.capture_message_evidence(msg)
+    record = await EvidenceCaptureService.get_evidence_record(message_id)
 
     return {
         "status": "verified",
@@ -401,14 +554,19 @@ async def get_message_evidence_record(
         "text": msg.get("text"),
         "threat_level": msg.get("threat_level"),
         "detected_sector": msg.get("detected_sector"),
+        "confidence_score": msg.get("confidence_score"),
         "iocs": msg.get("iocs", []),
         "evidence": {
             "algorithm": "SHA-256",
-            "hash": evidence.get("evidence_hash"),
-            "telegram_deep_link": evidence.get("telegram_link"),
-            "screenshot_proof_url": evidence.get("evidence_screenshot")
+            "hash": (record and record.get("message_sha256")) or evidence.get("evidence_hash"),
+            "screenshot_sha256": record and record.get("screenshot_sha256"),
+            "manifest_sha256": record and record.get("manifest_sha256"),
+            "telegram_deep_link": (record and record.get("telegram_link")) or evidence.get("telegram_link"),
+            "screenshot_proof_url": f"/api/v1/threats/{message_id}/evidence/screenshot",
+            "evidence_bundle_url": f"/api/v1/threats/{message_id}/evidence/bundle"
         }
     }
+
 
 
 @router.get("/stats", summary="Telemetry & Integration Health Statistics")

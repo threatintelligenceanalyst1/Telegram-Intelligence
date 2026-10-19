@@ -169,7 +169,78 @@ Quick lookup to verify if an IP, domain, hash, or wallet was mentioned in darkne
 
 ---
 
-## 5. Code Integration Examples
+### 5. Forensic Evidence & Cryptographic Verification Endpoints
+
+#### A. `GET /api/v1/threats/{id}/evidence`
+Retrieve authentic Playwright evidence capture status, SHA-256 hashes (screenshot & canonical JSON), manifest digest, and chain-of-custody audit logs.
+
+* **Sample Response (`200 OK`)**:
+```json
+{
+  "status": "success",
+  "client": "Enterprise Security Team",
+  "evidence": {
+    "record_id": "ev_0b4d9fa249a5",
+    "message_id": "ch1_104",
+    "capture_status": "captured",
+    "captured_at": "2026-10-19T10:45:00Z",
+    "embed_url": "https://t.me/darknet_channel/104?embed=1",
+    "screenshot_sha256": "8f3b1456a64b971a80d56b4f74d08c5c7619a9a3b6f8490a12cf6287950c4765",
+    "message_sha256": "4b971a80d56b4f74d08c5c7619a9a3b6f8490a12cf6287950c47658f3b1456a6",
+    "manifest_sha256": "c7619a9a3b6f8490a12cf6287950c47658f3b1456a64b971a80d56b4f74d08c5",
+    "screenshot_url": "/api/v1/threats/ch1_104/evidence/screenshot",
+    "bundle_url": "/api/v1/threats/ch1_104/evidence/bundle",
+    "chain_of_custody": [
+      {
+        "log_id": "aud_19283746",
+        "event": "captured",
+        "actor": "system",
+        "timestamp": "2026-10-19T10:45:02Z",
+        "status": "captured"
+      }
+    ]
+  }
+}
+```
+
+#### B. `GET /api/v1/threats/{id}/evidence/screenshot`
+Direct stream of the genuine Telegram web embed PNG image captured by headless Chromium. Content-Type: `image/png`.
+
+#### C. `GET /api/v1/threats/{id}/evidence/verify`
+Recomputes SHA-256 content hashes of the message JSON and screenshot PNG on disk. Verifies them against the immutable manifest in the evidence repository.
+
+* **Sample Response (`200 OK`)**:
+```json
+{
+  "status": "success",
+  "client": "Enterprise Security Team",
+  "verification": {
+    "message_id": "ch1_104",
+    "is_valid": true,
+    "verified": true,
+    "screenshot_hash_match": true,
+    "message_hash_match": true,
+    "manifest_hash_match": true,
+    "verified_at": "2026-10-19T11:00:00Z",
+    "audit_trail_summary": "Record verified using SHA-256 content hashes"
+  }
+}
+```
+
+#### D. `GET /api/v1/threats/{id}/evidence/bundle`
+Downloads a self-contained, authenticated forensic ZIP bundle (`application/zip`) suitable for chain-of-custody submission in court or compliance audits. Contains:
+- `screenshot.png` (genuine web render)
+- `message.json` (canonical raw data)
+- `manifest.json` (cryptographic fingerprints and capture metadata)
+- `README.txt` (CLI verification commands for Linux, macOS, and Windows PowerShell)
+
+#### E. `POST /api/v1/threats/{id}/evidence/recapture` (Admin Only)
+Requires administrative authorization header (`X-Admin-Secret`). Forces immediate re-capture of the web embed via headless Chromium and updates the audit log.
+
+---
+
+## 6. Code Integration Examples
+
 
 ### Python (using `requests`)
 ```python

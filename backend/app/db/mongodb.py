@@ -31,6 +31,8 @@ class InMemoryStore:
         self.threat_intel: Dict[str, dict] = {}
         self.reports: Dict[str, dict] = {}
         self.notifications: List[dict] = []
+        self.evidence_records: List[dict] = []
+        self.evidence_audit_log: List[dict] = []
 
     def add_notification(self, type_str: str, message: str):
         import datetime
@@ -101,6 +103,15 @@ async def init_db_indexes():
         # API Keys collection indexes
         await db.api_keys.create_index([("id", ASCENDING)], unique=True)
         await db.api_keys.create_index([("key_hash", ASCENDING)], unique=True)
-        logger.info("✅ MongoDB indexes initialized (including $text, date, and api_keys).")
+        # Evidence Records collection indexes (append-only)
+        await db.evidence_records.create_index([("record_id", ASCENDING)], unique=True)
+        await db.evidence_records.create_index([("message_id", ASCENDING)])
+        await db.evidence_records.create_index([("screenshot_sha256", ASCENDING)])
+        await db.evidence_records.create_index([("manifest_sha256", ASCENDING)])
+        await db.evidence_records.create_index([("created_at", DESCENDING)])
+        # Evidence Audit Log collection indexes (append-only)
+        await db.evidence_audit_log.create_index([("message_id", ASCENDING), ("timestamp", DESCENDING)])
+        await db.evidence_audit_log.create_index([("timestamp", DESCENDING)])
+        logger.info("✅ MongoDB indexes initialized (including $text, date, api_keys, evidence_records, and audit_log).")
     except Exception as e:
         logger.warning(f"⚠️ Failed to initialize MongoDB indexes: {e}")

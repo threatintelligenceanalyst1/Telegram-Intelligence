@@ -24,6 +24,12 @@ async def run_scraping_job():
         intel = await asyncio.to_thread(analyzer.analyze_message, msg)
         store.threat_intel[intel["id"]] = intel
         threat_intels.append(intel)
+        if intel.get("threat_level") in ["CRITICAL", "HIGH", "MEDIUM"]:
+            try:
+                from ..evidence.capture_service import enqueue_evidence_capture
+                enqueue_evidence_capture(msg, actor="batch_scraper")
+            except Exception:
+                pass
 
     # Generate Report
     channel_names = [c["username"] for c in monitored]
