@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Radio, Bell, RefreshCw, PlayCircle, Cpu, FileText, AlertTriangle, XCircle, Check } from 'lucide-react';
+import { Shield, Radio, Bell, RefreshCw, PlayCircle, Cpu, FileText, AlertTriangle, XCircle, Check, Menu } from 'lucide-react';
 import { syncTelegramChannels, startScraping, getNotifications, markNotificationsRead } from '../../services/api';
 
 interface NavbarProps {
   isScraping: boolean;
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ isScraping }) => {
+export const Navbar: React.FC<NavbarProps> = ({ isScraping, onToggleSidebar, isSidebarOpen }) => {
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -93,9 +95,23 @@ export const Navbar: React.FC<NavbarProps> = ({ isScraping }) => {
   };
 
   return (
-    <header className="h-14 bg-darkCard border-b border-darkBorder px-5 flex items-center justify-between sticky top-0 z-30 shadow-md">
+    <header className="h-14 bg-darkCard border-b border-darkBorder px-4 sm:px-5 flex items-center justify-between sticky top-0 z-30 shadow-md">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/10">
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className={`p-1.5 -ml-1 rounded-lg transition-all flex items-center justify-center border ${
+              isSidebarOpen
+                ? 'bg-blue-50 border-blue-200 text-blue-600'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent hover:border-slate-200'
+            }`}
+            title="Toggle Navigation Menu (Hamburger)"
+            aria-label="Toggle navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/10 shrink-0">
           <Shield className="w-4 h-4 text-white" />
         </div>
         <div className="flex items-center gap-2">
