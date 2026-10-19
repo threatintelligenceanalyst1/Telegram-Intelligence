@@ -119,43 +119,22 @@ export const ApiKeysPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 shadow-sm">
-              <Key className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                Customer & SIEM API Keys
-                <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800">
-                  100% Free & Unlimited
-                </span>
-              </h1>
-              <p className="text-xs font-medium text-slate-600 mt-0.5">
-                Generate cryptographically secure API keys to integrate Telegram Darknet Threat Intelligence into customer SOCs, SIEMs, and external scripts.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchKeys}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition"
-          >
-            <Plus className="w-4 h-4" />
-            Generate Customer Key
-          </button>
-        </div>
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-end gap-3">
+        <button
+          onClick={fetchKeys}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 shadow-sm transition"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition"
+        >
+          <Plus className="w-4 h-4" />
+          Generate Customer Key
+        </button>
       </div>
 
       {/* Metrics Cards */}
