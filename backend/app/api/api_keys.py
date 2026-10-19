@@ -1,12 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
-try:
-    from app.auth.api_keys import ApiKeyService
-    from app.auth.admin_guard import verify_admin_access
-except (ImportError, ValueError):
-    from ..auth.api_keys import ApiKeyService
-    from ..auth.admin_guard import verify_admin_access
+from app.auth.api_keys import ApiKeyService
+from app.auth.admin_guard import verify_admin_access
 
 router = APIRouter(
     prefix="/api-keys",

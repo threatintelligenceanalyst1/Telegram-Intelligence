@@ -3,18 +3,11 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Query, HTTPException, status
-try:
-    from app.auth.api_keys import verify_customer_api_key
-    from app.db import mongodb
-    from app.db.mongodb import store
-    from app.evidence.generator import EvidenceEngine
-    from app.llm.regex_extractors import extract_indicators_with_regex
-except (ImportError, ValueError):
-    from ...auth.api_keys import verify_customer_api_key
-    from ...db import mongodb
-    from ...db.mongodb import store
-    from ...evidence.generator import EvidenceEngine
-    from ...llm.regex_extractors import extract_indicators_with_regex
+from app.auth.api_keys import verify_customer_api_key
+from app.db import mongodb
+from app.db.mongodb import store
+from app.evidence.generator import EvidenceEngine
+from app.llm.regex_extractors import extract_indicators_with_regex
 
 router = APIRouter(prefix="/v1", tags=["Customer Integration API (v1)"])
 
