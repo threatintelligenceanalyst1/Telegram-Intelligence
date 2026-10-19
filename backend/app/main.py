@@ -179,14 +179,14 @@ async def lifespan(app: FastAPI):
     # 3. Restore any already migrated title-based or existing ID folders in the background
     asyncio.create_task(_migrate_csv_messages_to_db())
 
-    # Auto-sync channels if user session is already saved (if background scraping enabled in this process)
-    if settings.ENABLE_BACKGROUND_SCRAPER:
+    # Non-blocking background initialization for Telegram dialog sync and listener
+    async def _async_startup_telegram_sync():
         try:
             auth_status = await telegram_scraper.check_auth_status()
             if auth_status.get("is_authorized"):
                 user = auth_status.get("user", {})
                 username = user.get("username") or user.get("first_name") or "User"
-                logger.info(f"✓ Telegram session active — logged in as @{username}. Auto-syncing channels...")
+                logger.info(f"✓ Telegram session active — logged in as @{username}. Auto-syncing channels in background...")
                 channels = await telegram_scraper.sync_user_dialogs()
                 logger.info(f"✓ Auto-imported {len(channels)} real channels/groups from Telegram account.")
                 # Run migration of folders and reload to map them correctly
@@ -205,12 +205,15 @@ async def lifespan(app: FastAPI):
             else:
                 logger.info(f"No active Telegram session. Please authenticate via Settings page.")
         except Exception as e:
-            logger.warning(f"Auto-sync skipped: {e}")
+            logger.warning(f"Background Telegram auto-sync error: {e}")
 
-        # Start the automated target channel scheduler in background!
+    # Launch background tasks without delaying port 8000 binding
+    if settings.ENABLE_BACKGROUND_SCRAPER:
+        asyncio.create_task(_async_startup_telegram_sync())
         asyncio.create_task(run_scheduler())
     else:
         logger.info("ℹ️ Dedicated Worker Mode: Telethon scraper/listener running in separate service.")
+
     
     yield
     
