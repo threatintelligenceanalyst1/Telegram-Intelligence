@@ -14,7 +14,9 @@ import {
   AlertTriangle,
   Lock,
   ExternalLink,
-  Code2
+  Code2,
+  FileText,
+  Download
 } from 'lucide-react';
 import { getApiKeys, createApiKey, toggleApiKey, deleteApiKey } from '../services/api';
 import { ApiKey } from '../types';
@@ -128,6 +130,17 @@ export const ApiKeysPage: React.FC = () => {
           <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
+        <a
+          href="/Telegram_Darknet_API_Integration_Documentation.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          download="Telegram_Darknet_API_Integration_Documentation.pdf"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:text-blue-600 hover:bg-slate-50 shadow-sm transition"
+          title="Download complete 5-page PDF Documentation for developers & leadership"
+        >
+          <FileText className="w-3.5 h-3.5 text-blue-600" />
+          <span>Download PDF Docs</span>
+        </a>
         <button
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition"
