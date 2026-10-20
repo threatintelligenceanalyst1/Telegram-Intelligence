@@ -14,10 +14,12 @@ async def verify_admin_access(request: Request):
     3. Local development and internal dashboard calls (127.0.0.1 / localhost) remain permitted.
     """
     # Detect if traffic arrived through Cloudflare Tunnel or public reverse proxy
+    forwarded_for = request.headers.get("x-forwarded-for", "").strip()
+    is_local_forward = all(ip.strip() in ("127.0.0.1", "::1", "localhost") for ip in forwarded_for.split(",") if ip.strip())
     is_public_proxy = bool(
         request.headers.get("cf-connecting-ip")
         or request.headers.get("cf-ray")
-        or request.headers.get("x-forwarded-for")
+        or (forwarded_for and not is_local_forward)
     )
     client_host = request.client.host if request.client else ""
 

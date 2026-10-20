@@ -389,15 +389,15 @@ async def get_threat_evidence(
     manifest signature, and chain-of-custody audit log.
     """
     record = await EvidenceCaptureService.get_evidence_record(message_id)
-    if not record:
+    if not record or record.get("capture_status") != "captured":
         msg = await _get_message_by_id(message_id)
         if not msg:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Threat message '{message_id}' not found."
             )
-        # Trigger immediate capture for un-captured message
-        record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True)
+        # Trigger immediate capture for un-captured or previously failed message
+        record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True, force_recapture=True)
 
     return {
         "status": "success",
@@ -416,11 +416,11 @@ async def get_threat_evidence_screenshot(
     Falls back gracefully to analyst preview if capture failed or is unavailable.
     """
     record = await EvidenceCaptureService.get_evidence_record(message_id)
-    if not record or not record.get("screenshot_path"):
+    if not record or not record.get("screenshot_path") or not Path(str(record.get("screenshot_path"))).exists():
         msg = await _get_message_by_id(message_id)
         if not msg:
             raise HTTPException(status_code=404, detail="Threat message not found.")
-        record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True)
+        record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True, force_recapture=True)
 
     screenshot_path = record.get("screenshot_path") if record else None
     if screenshot_path and Path(screenshot_path).exists():
@@ -444,14 +444,14 @@ async def get_threat_evidence_screenshot(
     raise HTTPException(status_code=404, detail="Screenshot evidence not available.")
 
 
-@router.post("/threats/{message_id}/evidence/recapture", summary="Force re-capture evidence screenshot (Admin Only)")
+@router.post("/threats/{message_id}/evidence/recapture", summary="Force re-capture evidence screenshot")
 async def recapture_threat_evidence(
     message_id: str,
-    admin: Any = Depends(verify_admin_access)
+    client: Dict[str, Any] = Depends(verify_customer_or_internal_access)
 ):
     """
-    Administrative endpoint to force immediate re-capture of the Telegram embed view
-    using headless Chromium. Updates hashes, disk assets, and adds to custody audit log.
+    Force immediate re-capture of the Telegram embed view using headless Chromium.
+    Updates hashes, disk assets, and adds to custody audit log.
     """
     msg = await _get_message_by_id(message_id)
     if not msg:
@@ -460,7 +460,7 @@ async def recapture_threat_evidence(
             detail=f"Threat message '{message_id}' not found."
         )
 
-    record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True)
+    record = await EvidenceCaptureService.capture_and_store_evidence(msg, priority=True, force_recapture=True)
     return {
         "status": "success",
         "message": "Evidence re-captured successfully.",

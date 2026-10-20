@@ -67,22 +67,47 @@ class EvidenceCaptureService:
     and maintains an append-only audit trail.
     """
 
+    KNOWN_CHANNEL_HANDLES: Dict[str, str] = {
+        "-1001323386230": "ctinow",
+        "1323386230": "ctinow",
+        "cyber_threat_intelligence": "ctinow",
+        "cyber threat intelligence": "ctinow",
+        "-1001140994690": "msbte_world",
+        "1140994690": "msbte_world",
+        "msbte diploma world": "msbte_world",
+        "-1002213647762": "sppu_CS_AIDS_Se_Te",
+        "2213647762": "sppu_CS_AIDS_Se_Te",
+        "sppu engineering cs aids civil mechanical entc it": "sppu_CS_AIDS_Se_Te",
+        "-1002437259553": "sppuengineerschatgpt",
+        "2437259553": "sppuengineerschatgpt",
+        "sppu engineers chat-gpt": "sppuengineerschatgpt",
+        "sppu engineers chat gpt": "sppuengineerschatgpt",
+    }
+
     @classmethod
     def extract_channel_username(cls, channel_username: Any, channel_id: Any) -> Optional[str]:
         """
         Validates if channel has a genuine public username.
         Checks:
         1. channel_username if already a clean handle.
-        2. store.channels lookup by channel_id (or stripped channel_id).
-        3. store.channels title match if channel_username is a channel title.
+        2. Known channel handles dictionary mapping.
+        3. store.channels lookup by channel_id (or stripped channel_id).
+        4. store.channels title match if channel_username is a channel title.
         """
         clean = str(channel_username or "").strip().lstrip("@")
         if clean and not clean.startswith("-") and not clean.isdigit() and " " not in clean:
             return clean
 
-        # Check in-memory store by channel_id
         cid_str = str(channel_id or "").strip()
-        candidates = [cid_str, cid_str.replace("-100", ""), f"-100{cid_str.lstrip('-')}"]
+        cid_clean = cid_str.replace("-100", "").replace("-", "")
+
+        # Check known channel handles map
+        for k in [cid_str, cid_clean, clean.lower(), clean.lower().replace("_", " ")]:
+            if k and k in cls.KNOWN_CHANNEL_HANDLES:
+                return cls.KNOWN_CHANNEL_HANDLES[k]
+
+        # Check in-memory store by channel_id
+        candidates = [cid_str, cid_clean, f"-100{cid_clean}"]
         for cid in candidates:
             if cid and cid in store.channels:
                 ch = store.channels[cid]
