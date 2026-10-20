@@ -12,9 +12,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, Tuple
 
-from ..config import settings
-from ..db import mongodb
-from ..db.mongodb import store
+from app.config import settings
+from app.db import mongodb
+from app.db.mongodb import store
 
 logger = logging.getLogger("darknet_monitor.evidence")
 
@@ -67,16 +67,40 @@ class EvidenceCaptureService:
     and maintains an append-only audit trail.
     """
 
-    @staticmethod
-    def extract_channel_username(channel_username: Any, channel_id: Any) -> Optional[str]:
+    @classmethod
+    def extract_channel_username(cls, channel_username: Any, channel_id: Any) -> Optional[str]:
         """
         Validates if channel has a genuine public username.
-        Private channels (numeric, starting with -100, spaces) return None.
+        Checks:
+        1. channel_username if already a clean handle.
+        2. store.channels lookup by channel_id (or stripped channel_id).
+        3. store.channels title match if channel_username is a channel title.
         """
         clean = str(channel_username or "").strip().lstrip("@")
-        if not clean or clean.startswith("-") or clean.isdigit() or " " in clean:
-            return None
-        return clean
+        if clean and not clean.startswith("-") and not clean.isdigit() and " " not in clean:
+            return clean
+
+        # Check in-memory store by channel_id
+        cid_str = str(channel_id or "").strip()
+        candidates = [cid_str, cid_str.replace("-100", ""), f"-100{cid_str.lstrip('-')}"]
+        for cid in candidates:
+            if cid and cid in store.channels:
+                ch = store.channels[cid]
+                raw_u = ch.get("raw_username") or ch.get("username", "")
+                c_u = str(raw_u or "").strip().lstrip("@")
+                if c_u and not c_u.startswith("-") and not c_u.isdigit() and " " not in c_u:
+                    return c_u
+
+        # Check by channel title match in store.channels
+        if clean:
+            for ch in store.channels.values():
+                if ch.get("title", "").strip().lower() == clean.lower():
+                    raw_u = ch.get("raw_username") or ch.get("username", "")
+                    c_u = str(raw_u or "").strip().lstrip("@")
+                    if c_u and not c_u.startswith("-") and not c_u.isdigit() and " " not in c_u:
+                        return c_u
+
+        return None
 
     @staticmethod
     def extract_numeric_message_id(message_id: Any) -> str:

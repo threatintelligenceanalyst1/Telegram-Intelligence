@@ -437,10 +437,12 @@ class TelegramScraper:
                     pass
 
                 msg_date = msg.date
+                raw_handle = matched_channel.get("raw_username", "") if matched_channel else ""
                 msg_data = {
                     "id": f"msg_{ch_id_str}_{msg.id}",
                     "channel_id": str(ch_id_str),
-                    "channel_username": ch_title,
+                    "channel_username": raw_handle or ch_title,
+                    "channel_title": ch_title,
                     "sender": sender_desc,
                     "text": msg.text,
                     "date": msg_date.isoformat() if msg_date else datetime.utcnow().isoformat(),
@@ -544,7 +546,8 @@ class TelegramScraper:
                 msg_data = {
                     "id": f"msg_{ch_id}_{message.id}",
                     "channel_id": str(ch_id),
-                    "channel_username": ch_title,
+                    "channel_username": raw_user or ch_title,
+                    "channel_title": ch_title,
                     "sender": sender_desc,
                     "text": message.text,
                     "date": msg_date.isoformat() if msg_date else datetime.utcnow().isoformat(),
