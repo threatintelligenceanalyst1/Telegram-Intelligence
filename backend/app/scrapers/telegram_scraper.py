@@ -35,6 +35,7 @@ class TelegramScraper:
         self.phone_code_hash: Optional[str] = None
         self.active_phone: Optional[str] = None
         self._lock = asyncio.Lock()
+        self._client_lock = asyncio.Lock()
         # Queue tracking for multi-channel progress panel
         self.scrape_queue: List[str] = []      # channel titles yet to be scraped
         self.completed_channels: List[str] = [] # channel titles finished
@@ -96,54 +97,93 @@ class TelegramScraper:
         session_path = str(settings.DATA_DIR / "darknet_session")
         return TelegramClient(session_path, int(target_api_id), str(target_api_hash))
 
-    async def get_connected_client(self) -> Optional[Any]:
-        """Get or initialize the persistent connected TelegramClient to prevent SQLite lock errors."""
-        if self.client:
-            try:
-                if self.client.is_connected():
-                    return self.client
-                await self.client.connect()
-                return self.client
-            except Exception:
-                try:
-                    await self.client.disconnect()
-                except Exception:
-                    pass
-                self.client = None
-
-        self.client = self._create_telethon_client()
-        if not self.client:
-            return None
-
+    @staticmethod
+    def _prepare_session_sqlite():
+        """Ensure WAL mode and 60-second busy timeout on Telethon SQLite session to prevent 'database is locked' errors."""
+        session_file = settings.DATA_DIR / "darknet_session.session"
+        if not session_file.exists():
+            return
         try:
-            await self.client.connect()
-            return self.client
-        except Exception as e:
-            err_str = str(e).lower()
-            # Permanent session failures — wipe the session and force re-login
-            permanent_failures = [
-                "auth_key",        # corrupted key
-                "nonce",           # nonce mismatch
-                "step 3",          # MTProto handshake failure
-                "authkeyduplicated",     # used from 2 IPs simultaneously
-                "authkeyunregistered",   # session revoked by Telegram
-                "userdeactivated",       # account banned
-                "sessionrevoked",        # manually revoked from Telegram app
-            ]
-            if any(kw in err_str for kw in permanent_failures):
-                logger.error(
-                    f"❌ Telegram session permanently invalidated: {e}\n"
-                    f"   → Delete the session file and re-authenticate via Settings page."
-                )
-                self._cleanup_corrupted_session()
-            else:
-                logger.warning(f"Telegram connection error: {e}")
-            try:
-                await self.client.disconnect()
-            except Exception:
-                pass
-            self.client = None
-            return None
+            import sqlite3
+            con = sqlite3.connect(str(session_file), timeout=30.0)
+            con.execute("PRAGMA journal_mode = WAL;")
+            con.execute("PRAGMA busy_timeout = 60000;")
+            con.execute("PRAGMA synchronous = NORMAL;")
+            con.commit()
+            con.close()
+        except Exception:
+            pass
+
+    @staticmethod
+    async def _safe_disconnect_client(client_obj):
+        """Safely disconnect Telethon client and cancel loops to avoid orphaned tasks and GeneratorExit errors."""
+        if not client_obj:
+            return
+        try:
+            sender = getattr(client_obj, "_sender", None)
+            if sender:
+                for loop_attr in ["_send_loop_handle", "_recv_loop_handle", "_send_loop", "_recv_loop"]:
+                    t = getattr(sender, loop_attr, None)
+                    if t and hasattr(t, "cancel") and not getattr(t, "done", lambda: True)():
+                        t.cancel()
+            await client_obj.disconnect()
+        except Exception:
+            pass
+
+    async def get_connected_client(self) -> Optional[Any]:
+        """Get or initialize the persistent connected TelegramClient with concurrency lock and retry."""
+        async with self._client_lock:
+            if self.client:
+                try:
+                    if self.client.is_connected():
+                        return self.client
+                    await self.client.connect()
+                    return self.client
+                except Exception:
+                    await self._safe_disconnect_client(self.client)
+                    self.client = None
+
+            self._prepare_session_sqlite()
+
+            max_attempts = 3
+            for attempt in range(1, max_attempts + 1):
+                self.client = self._create_telethon_client()
+                if not self.client:
+                    return None
+
+                try:
+                    await self.client.connect()
+                    return self.client
+                except Exception as e:
+                    err_str = str(e).lower()
+                    await self._safe_disconnect_client(self.client)
+                    self.client = None
+
+                    if "locked" in err_str and attempt < max_attempts:
+                        logger.warning(f"Telegram SQLite session locked (attempt {attempt}/{max_attempts}). Backing off...")
+                        await asyncio.sleep(1.5 * attempt)
+                        continue
+
+                    # Permanent session failures — wipe the session and force re-login
+                    permanent_failures = [
+                        "auth_key",        # corrupted key
+                        "nonce",           # nonce mismatch
+                        "step 3",          # MTProto handshake failure
+                        "authkeyduplicated",     # used from 2 IPs simultaneously
+                        "authkeyunregistered",   # session revoked by Telegram
+                        "userdeactivated",       # account banned
+                        "sessionrevoked",        # manually revoked from Telegram app
+                    ]
+                    if any(kw in err_str for kw in permanent_failures):
+                        logger.error(
+                            f"❌ Telegram session permanently invalidated: {e}\n"
+                            f"   → Delete the session file and re-authenticate via Settings page."
+                        )
+                        self._cleanup_corrupted_session()
+                    else:
+                        logger.warning(f"Telegram connection error: {e}")
+                    return None
+
 
     def _safe_name(self, s: str) -> str:
         s = re.sub(r"\W+", "_", (s or "").strip())
@@ -307,23 +347,29 @@ class TelegramScraper:
         if not getattr(settings, "LIVE_LISTENER_ENABLED", True) or not telethon_available:
             return
 
-        if self._listener_attached and self.live_listener_active:
+        if self._listener_attached or self.live_listener_active:
             return
 
+        self.live_listener_active = True
         client = await self.get_connected_client()
         if not client:
+            self.live_listener_active = False
             return
 
         try:
             if not await client.is_user_authorized():
+                self.live_listener_active = False
                 return
         except Exception:
+            self.live_listener_active = False
             return
 
         if self._listener_attached:
             return
 
+        self._listener_attached = True
         @client.on(events.NewMessage)
+
         async def _live_message_handler(event):
             try:
                 msg = event.message
@@ -434,8 +480,11 @@ class TelegramScraper:
                     except Exception as ev_err:
                         logger.warning(f"Failed to enqueue evidence capture: {ev_err}")
 
+            except (asyncio.CancelledError, GeneratorExit):
+                return
             except Exception as e:
                 logger.error(f"Error handling live Telegram message: {e}")
+
 
         self._listener_attached = True
         self.live_listener_active = True
@@ -530,29 +579,29 @@ class TelegramScraper:
         if not telethon_available:
             return {"is_authorized": False, "reason": "Telethon library missing"}
 
-        async with self._lock:
-            client = await self.get_connected_client()
-            if not client:
-                return {"is_authorized": False, "reason": "API ID and API Hash not set in .env"}
+        client = await self.get_connected_client()
+        if not client:
+            return {"is_authorized": False, "reason": "API ID and API Hash not set in .env"}
 
-            try:
-                is_auth = await client.is_user_authorized()
-                user_info = None
-                if is_auth:
-                    me = await client.get_me()
-                    user_info = {
-                        "id": me.id,
-                        "username": me.username,
-                        "first_name": me.first_name,
-                        "phone": me.phone
-                    }
-                return {
-                    "is_authorized": is_auth,
-                    "user": user_info,
-                    "api_id": settings.TELEGRAM_API_ID
+        try:
+            is_auth = await client.is_user_authorized()
+            user_info = None
+            if is_auth:
+                me = await client.get_me()
+                user_info = {
+                    "id": me.id,
+                    "username": me.username,
+                    "first_name": me.first_name,
+                    "phone": me.phone
                 }
-            except Exception as e:
-                return {"is_authorized": False, "reason": str(e)}
+            return {
+                "is_authorized": is_auth,
+                "user": user_info,
+                "api_id": settings.TELEGRAM_API_ID
+            }
+        except Exception as e:
+            return {"is_authorized": False, "reason": str(e)}
+
 
     async def send_otp_code(self, phone_number: str, api_id: int = 0, api_hash: str = "") -> Dict[str, Any]:
         """Send Telegram OTP code to phone number, maintaining active Telethon client."""
