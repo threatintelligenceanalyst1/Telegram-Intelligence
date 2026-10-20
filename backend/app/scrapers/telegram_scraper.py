@@ -105,6 +105,10 @@ class TelegramScraper:
                 await self.client.connect()
                 return self.client
             except Exception:
+                try:
+                    await self.client.disconnect()
+                except Exception:
+                    pass
                 self.client = None
 
         self.client = self._create_telethon_client()
@@ -134,6 +138,10 @@ class TelegramScraper:
                 self._cleanup_corrupted_session()
             else:
                 logger.warning(f"Telegram connection error: {e}")
+            try:
+                await self.client.disconnect()
+            except Exception:
+                pass
             self.client = None
             return None
 
