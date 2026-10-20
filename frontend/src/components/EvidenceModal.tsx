@@ -11,7 +11,6 @@ import {
   Link,
   Sparkles,
   Camera,
-  Layers,
   RefreshCw,
   AlertTriangle,
   CheckCheck,
@@ -26,8 +25,7 @@ import {
   verifyEvidence,
   recaptureEvidence,
   getEvidenceScreenshotUrl,
-  getEvidenceBundleUrl,
-  getEvidenceDownloadUrl
+  getEvidenceBundleUrl
 } from '../services/api';
 
 interface EvidenceModalProps {
@@ -37,7 +35,6 @@ interface EvidenceModalProps {
 }
 
 export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKeyword, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'screenshot' | 'analyst'>('screenshot');
   const [record, setRecord] = useState<EvidenceRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState<boolean>(true);
   const [verification, setVerification] = useState<EvidenceVerification | null>(null);
@@ -58,12 +55,6 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
       .then((data) => {
         if (isMounted) {
           setRecord(data);
-          // If capture failed, start on analyst tab so user gets immediate visual feedback
-          if (data && data.capture_status === 'failed') {
-            setActiveTab('analyst');
-          } else {
-            setActiveTab('screenshot');
-          }
         }
       })
       .catch((err) => {
@@ -82,7 +73,6 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
 
   const screenshotUrl = getEvidenceScreenshotUrl(message.id);
   const bundleUrl = getEvidenceBundleUrl(message.id);
-  const analystDownloadUrl = getEvidenceDownloadUrl(message.id, searchKeyword);
 
   // Compute direct Telegram permalink
   const getTelegramLink = () => {
@@ -147,9 +137,6 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
       const updated = await recaptureEvidence(message.id);
       setRecord(updated);
       setImageError(false);
-      if (updated.capture_status === 'captured') {
-        setActiveTab('screenshot');
-      }
     } catch (err) {
       console.error('Recapture request failed:', err);
     } finally {
@@ -190,7 +177,7 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
                 <h2 className="text-base font-extrabold tracking-tight text-white">Forensic Evidence & Screenshot Proof</h2>
                 {isCaptured && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    AUTHENTIC CAPTURE
+                    CAPTURED
                   </span>
                 )}
                 {isFailed && (
@@ -229,176 +216,83 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="px-6 pt-3 pb-0 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab('screenshot')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'screenshot'
-                  ? 'border-blue-600 text-blue-600 bg-white rounded-t-lg'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Captured Screenshot</span>
-              {isCaptured && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block ml-1"></span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('analyst')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'analyst'
-                  ? 'border-blue-600 text-blue-600 bg-white rounded-t-lg'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Analyst View</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-slate-500 pb-1">
-            <button
-              onClick={handleRecapture}
-              disabled={isRecapturing}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-[11px] font-medium transition cursor-pointer disabled:opacity-50"
-              title="Force re-capture using headless Chromium"
-            >
-              <RefreshCw className={`w-3 h-3 ${isRecapturing ? 'animate-spin text-blue-600' : ''}`} />
-              <span>{isRecapturing ? 'Capturing...' : 'Recapture'}</span>
-            </button>
-          </div>
-        </div>
-
         {/* Modal Scrollable Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">
           
-          {/* TAB 1: Captured Screenshot */}
-          {activeTab === 'screenshot' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    Genuine Telegram Embed Screenshot
-                  </h3>
-                  {record?.captured_at && (
-                    <span className="text-[11px] text-slate-400">
-                      Captured: {formatDate(record.captured_at)}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <a
-                    href={screenshotUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                  >
-                    <span>View Full Resolution</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-300 bg-slate-900 p-2 shadow-inner overflow-hidden flex flex-col justify-center items-center min-h-[260px]">
-                {isCaptured && !imageError ? (
-                  <img
-                    src={screenshotUrl}
-                    alt={`Evidence capture for message ${message.id}`}
-                    onError={() => setImageError(true)}
-                    className="rounded-lg max-h-[460px] w-auto object-contain shadow-md"
-                  />
-                ) : isFailed ? (
-                  <div className="max-w-md p-6 text-center space-y-3">
-                    <div className="w-12 h-12 mx-auto rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                      <AlertTriangle className="w-6 h-6" />
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-white">Genuine Web Capture Not Available</h4>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        {record?.failure_reason || 'This channel is private or does not permit public web embeds.'}
-                      </p>
-                    </div>
-                    <div className="pt-2 flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => setActiveTab('analyst')}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition"
-                      >
-                        Switch to Analyst View
-                      </button>
-                      <button
-                        onClick={handleRecapture}
-                        disabled={isRecapturing}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition flex items-center gap-1"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${isRecapturing ? 'animate-spin' : ''}`} />
-                        <span>Retry Capture</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-12 flex flex-col items-center gap-2 text-slate-400">
-                    <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
-                    <p className="text-xs font-medium">Loading authentic screenshot...</p>
-                  </div>
+          {/* Captured Screenshot */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                  Genuine Telegram Embed Screenshot
+                </h3>
+                {record?.captured_at && (
+                  <span className="text-[11px] text-slate-400">
+                    Captured: {formatDate(record.captured_at)}
+                  </span>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* TAB 2: Analyst View */}
-          {activeTab === 'analyst' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-blue-600" />
-                  Analyst Message Reconstruction & Context View
-                </h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleRecapture}
+                  disabled={isRecapturing}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-[11px] font-medium transition cursor-pointer disabled:opacity-50"
+                  title="Force re-capture using headless Chromium"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isRecapturing ? 'animate-spin text-blue-600' : ''}`} />
+                  <span>{isRecapturing ? 'Capturing...' : 'Recapture'}</span>
+                </button>
                 <a
-                  href={analystDownloadUrl}
+                  href={screenshotUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
                 >
-                  <span>Download Analyst Card</span>
+                  <span>View Full Resolution</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
+            </div>
 
-              <div className="rounded-xl border border-slate-300 bg-[#0e1621] p-4 shadow-inner flex justify-center items-center">
-                <div className="w-full max-w-xl p-4 bg-[#0e1621] rounded-xl text-white font-sans space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#242f3d]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-[#2b5278] flex items-center justify-center font-bold text-xs">
-                        {(message.channel_username || 'TG').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="text-xs font-bold">{message.channel_username}</div>
-                    </div>
-                    <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
-                      FORENSIC SNAPSHOT
-                    </span>
+            <div className="rounded-xl border border-slate-300 bg-slate-900 p-2 shadow-inner overflow-hidden flex flex-col justify-center items-center min-h-[260px]">
+              {isCaptured && !imageError ? (
+                <img
+                  src={screenshotUrl}
+                  alt={`Evidence capture for message ${message.id}`}
+                  onError={() => setImageError(true)}
+                  className="rounded-lg max-h-[460px] w-auto object-contain shadow-md"
+                />
+              ) : isFailed ? (
+                <div className="max-w-md p-6 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <AlertTriangle className="w-6 h-6" />
                   </div>
-
-                  <div className="bg-[#182533] p-3.5 rounded-xl border border-[#242f3d] space-y-1.5">
-                    <div className="text-xs font-bold text-[#64b5f6]">{message.sender}</div>
-                    <div className="text-xs text-slate-100 whitespace-pre-wrap leading-relaxed">{message.text}</div>
-                    <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1.5 pt-1">
-                      <span className="inline-flex items-center gap-1">
-                        <Eye className="w-3 h-3 text-slate-400" />
-                        <span>{message.views || 10}</span>
-                      </span>
-                      <span>•</span>
-                      <span>{formatDate(message.date)}</span>
-                      <CheckCheck className="w-3.5 h-3.5 text-blue-400 ml-0.5" />
-                    </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-white">Genuine Web Capture Not Available</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {record?.failure_reason || 'This channel is private or does not permit public web embeds.'}
+                    </p>
+                  </div>
+                  <div className="pt-2 flex items-center justify-center gap-2">
+                    <button
+                      onClick={handleRecapture}
+                      disabled={isRecapturing}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isRecapturing ? 'animate-spin' : ''}`} />
+                      <span>Retry Capture</span>
+                    </button>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="py-12 flex flex-col items-center gap-2 text-slate-400">
+                  <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
+                  <p className="text-xs font-medium">Loading authentic screenshot...</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Cryptographic Hashes & Integrity Fingerprints */}
           <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800 space-y-3">
@@ -436,8 +330,8 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
                   )}
                   <span>
                     {verification.verified
-                      ? 'Integrity Verified: All SHA-256 digests match the immutable manifest and chain of custody.'
-                      : `Verification Warning: ${verification.details || 'Digests do not match immutable record.'}`}
+                      ? 'Integrity Verified: All SHA-256 digests match the stored manifest and chain of custody.'
+                      : `Verification Warning: ${verification.details || 'Digests do not match stored record.'}`}
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-400 font-mono shrink-0">
@@ -676,7 +570,7 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({ message, searchKey
         <div className="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Official Cyber Threat Intelligence Evidence Log • Tamper-proof audit record</span>
+            <span>Evidence log • Evidence record (hash-verified)</span>
           </div>
 
           <div className="flex items-center gap-2">
